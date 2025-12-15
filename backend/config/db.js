@@ -19,4 +19,6 @@ const connectDB = async () => {
   return cached.conn;
 };
 
+console.log("MONGO_URI exists:", !!process.env.MONGO_URI);
+
 module.exports = connectDB;
