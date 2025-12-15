@@ -15,18 +15,6 @@ const connectDB = require("./config/db");
 
 const app = express();
 
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error("DB connection error:", err);
-    res.status(500).json({ error: "Database not connected" });
-  }
-});
-
-
-
 
 
 app.post(
@@ -63,6 +51,7 @@ app.use(
   })
 );
 //connect to mongodb
+
 
 
 
