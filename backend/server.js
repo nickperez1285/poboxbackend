@@ -4,7 +4,7 @@ const customerRoutes = require('./routes/customerRoutes');
 const priceRoutes = require('./routes/priceRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
-const webhookRoutes = require('./routes/webhookRoutes');
+// const webhookRoutes = require('./routes/webhookRoutes');
 const productRoutes = require('./routes/productRoutes');
 const authRoutes = require("./routes/auth");
 const cors = require('cors');
@@ -18,11 +18,11 @@ const app = express();
 
 
 
-app.use(
+app.post(
   "/api/webhook",
+  express.raw({ type: "application/json" }),
   require("./routes/webhookRoutes")
 );
-
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -31,16 +31,26 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
+// app.use(
+//   cors({
+//     origin: [
+//       "http://localhost:3000",
+//       process.env.BASE_URL
+//     ],
+//     credentials: true,
+//   })
+// );
+
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      process.env.BASE_URL
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // allow webhooks
+      callback(null, true);
+    },
     credentials: true,
   })
 );
-
 //connect to mongodb
 
 connectDB();
