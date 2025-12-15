@@ -53,17 +53,19 @@ app.use(
 );
 //connect to mongodb
 
-connectDB();
+const startServer = async () => {
+  await connectDB();
 
-app.use('/api', customerRoutes);
-app.use('/api', priceRoutes);
-app.use('/api', subscriptionRoutes);
-// app.use('/api', webhookRoutes);
-app.use('/api', checkoutRoutes);
-app.use('/api', couponRoutes)
-app.use('/api', productRoutes)
-app.use("/api/auth", authRoutes);
+  app.use("/api", customerRoutes);
+  app.use("/api", priceRoutes);
+  app.use("/api", subscriptionRoutes);
+  app.use("/api", checkoutRoutes);
+  app.use("/api", couponRoutes);
+  app.use("/api", productRoutes);
+  app.use("/api/auth", authRoutes);
+};
 
+startServer();
 
 const PORT = process.env.PORT || 3001;
 
