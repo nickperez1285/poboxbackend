@@ -67,6 +67,10 @@ const startServer = async () => {
 
 startServer();
 
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 const PORT = process.env.PORT || 3001;
 
 if (require.main === module) {
