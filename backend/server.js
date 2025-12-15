@@ -15,6 +15,17 @@ const connectDB = require("./config/db");
 
 const app = express();
 
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("DB connection error:", err);
+    res.status(500).json({ error: "Database not connected" });
+  }
+});
+
+
 
 
 
@@ -53,12 +64,18 @@ app.use(
 );
 //connect to mongodb
 
-const startServer = async () => {
-  await connectDB();
 
-};
 
-startServer();
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: "Database connection failed" });
+  }
+});
+
+
 
   app.use("/api", customerRoutes);
   app.use("/api", priceRoutes);
