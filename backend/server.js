@@ -56,19 +56,24 @@ app.use(
 const startServer = async () => {
   await connectDB();
 
+};
+
+startServer();
+
   app.use("/api", customerRoutes);
   app.use("/api", priceRoutes);
   app.use("/api", subscriptionRoutes);
   app.use("/api", checkoutRoutes);
   app.use("/api", couponRoutes);
   app.use("/api", productRoutes);
-  app.use("/api/auth", authRoutes);
-};
+app.use("/api/auth", require("./routes/auth"));
 
-startServer();
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
+});
+app.post("/api/auth/login", (req, res) => {
+  res.status(200).json({ debug: "route hit" });
 });
 
 const PORT = process.env.PORT || 3001;
