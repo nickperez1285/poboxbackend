@@ -104,4 +104,44 @@ router.post("/vendor-registration", async (req, res) => {
   }
 });
 
+router.post("/package-check-in", async (req, res) => {
+  const { vendorName, recipients } = req.body || {};
+
+  if (!vendorName || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ message: "Missing package check in recipients" });
+  }
+
+  const invalidRecipient = recipients.find((recipient) => !recipient?.email);
+  if (invalidRecipient) {
+    return res.status(400).json({ message: "All package recipients must include an email address" });
+  }
+
+  try {
+    for (const recipient of recipients) {
+      try {
+        await sendEmail({
+          to: recipient.email,
+          replyTo: adminInbox,
+          subject: `Package received at ${vendorName}`,
+          text: [
+            `Hello ${recipient.name || "Customer"},`,
+            "",
+            `You have received a package at ${vendorName}.`,
+            "",
+            "Porch P.O. Box"
+          ].join("\n")
+        });
+      } catch (error) {
+        throw new Error(
+          `Package email to ${recipient.email} failed: ${error.message || "Unknown delivery error"}`
+        );
+      }
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Package check in email delivery failed" });
+  }
+});
+
 module.exports = router;
