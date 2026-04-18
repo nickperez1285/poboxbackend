@@ -6,6 +6,7 @@ const couponRoutes = require('./routes/couponRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 // const webhookRoutes = require('./routes/webhookRoutes');
 const productRoutes = require('./routes/productRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const authRoutes = require("./routes/auth");
 const cors = require('cors');
 const connectDB = require("./config/db");
@@ -52,6 +53,7 @@ app.use(
 );
 //connect to mongodb
 
+app.use("/api/notifications", notificationRoutes);
 
 
 
