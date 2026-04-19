@@ -9,7 +9,6 @@ const productRoutes = require('./routes/productRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const authRoutes = require("./routes/auth");
 const cors = require('cors');
-const connectDB = require("./config/db");
 // removed for vercel 
 // const dotenv = require('dotenv');
 // dotenv.config();
@@ -51,22 +50,7 @@ app.use(
     credentials: true,
   })
 );
-//connect to mongodb
-
 app.use("/api/notifications", notificationRoutes);
-
-
-
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    res.status(500).json({ error: "Database connection failed" });
-  }
-});
-
-
 
   app.use("/api", customerRoutes);
   app.use("/api", priceRoutes);
