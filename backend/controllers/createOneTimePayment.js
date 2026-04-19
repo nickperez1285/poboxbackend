@@ -1,7 +1,7 @@
 const stripe = require('../config/stripeConfig');
 
 exports.createOneTimePayment = async (req, res) => {
-  const { priceId } = req.body;
+  const { priceId, userId, email } = req.body;
 
   if (!priceId) {
     return res.status(400).json({ success: false, message: 'Price ID is required' });
@@ -12,14 +12,16 @@ exports.createOneTimePayment = async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
+      client_reference_id: userId || undefined,
+      customer_email: email || undefined,
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      success_url: `${process.env.BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.BASE_URL}/cancel`,
+      success_url: `${process.env.BASE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.BASE_URL}/checkout/cancel`,
     });
 
     // Return the session URL for the client to redirect to

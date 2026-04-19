@@ -2,7 +2,7 @@ const stripe = require('../config/stripeConfig');
 const { createOneTimePayment } = require('../controllers/createOneTimePayment');
 
 exports.createCheckoutSession = async (req, res) => {
-  const { priceId, isSubscription, coupon } = req.body;
+  const { priceId, isSubscription, coupon, userId, email } = req.body;
 
   if (!priceId) {
     return res.status(400).json({ success: false, message: 'Price ID is required' });
@@ -21,14 +21,16 @@ exports.createCheckoutSession = async (req, res) => {
     const sessionConfig = {
       mode,
       payment_method_types: ['card'],
+      client_reference_id: userId || undefined,
+      customer_email: email || undefined,
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      success_url: `${process.env.BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.BASE_URL}/cancel`,
+      success_url: `${process.env.BASE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.BASE_URL}/checkout/cancel`,
     };
 
     // Add discount if a coupon is provided
@@ -44,5 +46,33 @@ exports.createCheckoutSession = async (req, res) => {
   } catch (error) {
     console.error('Error creating checkout session:', error);
     res.status(500).json({ success: false, message: 'Failed to create checkout session' });
+  }
+};
+
+exports.getCheckoutSession = async (req, res) => {
+  const { sessionId } = req.params;
+
+  if (!sessionId) {
+    return res.status(400).json({ success: false, message: "Session ID is required" });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    res.json({
+      success: true,
+      session: {
+        id: session.id,
+        payment_status: session.payment_status,
+        status: session.status,
+        customer_email: session.customer_email,
+        client_reference_id: session.client_reference_id,
+        created: session.created,
+        mode: session.mode
+      }
+    });
+  } catch (error) {
+    console.error("Error retrieving checkout session:", error);
+    res.status(500).json({ success: false, message: "Failed to retrieve checkout session" });
   }
 };
