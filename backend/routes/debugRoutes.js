@@ -4,6 +4,15 @@ const { admin, getFirestore } = require("../config/firebaseAdmin");
 const router = express.Router();
 const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
+router.get("/firebase-env", (req, res) => {
+  res.json({
+    success: true,
+    hasProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),
+    hasClientEmail: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
+    hasPrivateKey: Boolean(process.env.FIREBASE_PRIVATE_KEY)
+  });
+});
+
 router.post("/activate-user", async (req, res) => {
   const { userId } = req.body;
 
