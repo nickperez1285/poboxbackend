@@ -4,6 +4,19 @@ const { admin, getFirestore } = require("../config/firebaseAdmin");
 
 const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
+const timestampToDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const activateUserSubscription = async (session, overrideUserId) => {
   const userId = overrideUserId || session.client_reference_id;
 
@@ -19,8 +32,8 @@ const activateUserSubscription = async (session, overrideUserId) => {
   if (currentData.lastCheckoutSessionId === session.id) {
     return {
       alreadyProcessed: true,
-      subscribedAt: currentData.subscribedAt || null,
-      subscriptionEndsAt: currentData.subscriptionEndsAt || null
+      subscribedAt: timestampToDate(currentData.subscribedAt),
+      subscriptionEndsAt: timestampToDate(currentData.subscriptionEndsAt)
     };
   }
 
@@ -181,8 +194,12 @@ exports.finalizeCheckoutSession = async (req, res) => {
     res.json({
       success: true,
       alreadyProcessed: activation.alreadyProcessed,
-      subscribedAt: activation.subscribedAt,
+      subscribedAt: activation.subscribedAt
+        ? timestampToDate(activation.subscribedAt)?.toISOString() || null
+        : null,
       subscriptionEndsAt: activation.subscriptionEndsAt
+        ? timestampToDate(activation.subscriptionEndsAt)?.toISOString() || null
+        : null
     });
   } catch (error) {
     console.error("Error finalizing checkout session:", error);
