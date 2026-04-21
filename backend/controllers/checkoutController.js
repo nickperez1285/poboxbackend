@@ -1,5 +1,56 @@
 const stripe = require('../config/stripeConfig');
 const { createOneTimePayment } = require('../controllers/createOneTimePayment');
+const { admin, getFirestore } = require("../config/firebaseAdmin");
+
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+
+const activateUserSubscription = async (session, overrideUserId) => {
+  const userId = overrideUserId || session.client_reference_id;
+
+  if (!userId) {
+    throw new Error("Missing user ID for subscription activation.");
+  }
+
+  const firestore = getFirestore();
+  const userRef = firestore.collection("users").doc(userId);
+  const snapshot = await userRef.get();
+  const currentData = snapshot.exists ? snapshot.data() : {};
+
+  if (currentData.lastCheckoutSessionId === session.id) {
+    return {
+      alreadyProcessed: true,
+      subscribedAt: currentData.subscribedAt || null,
+      subscriptionEndsAt: currentData.subscriptionEndsAt || null
+    };
+  }
+
+  const existingEndDate = currentData.subscriptionEndsAt?.toDate
+    ? currentData.subscriptionEndsAt.toDate()
+    : null;
+  const purchaseDate = new Date();
+  const extensionBaseDate =
+    existingEndDate && existingEndDate.getTime() > Date.now()
+      ? existingEndDate
+      : purchaseDate;
+  const endDate = new Date(extensionBaseDate.getTime() + THIRTY_DAYS_IN_MS);
+
+  await userRef.set(
+    {
+      email: session.customer_email || currentData.email || "",
+      status: "active",
+      subscribedAt: admin.firestore.Timestamp.fromDate(purchaseDate),
+      subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate),
+      lastCheckoutSessionId: session.id
+    },
+    { merge: true }
+  );
+
+  return {
+    alreadyProcessed: false,
+    subscribedAt: admin.firestore.Timestamp.fromDate(purchaseDate),
+    subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate)
+  };
+};
 
 exports.createCheckoutSession = async (req, res) => {
   const { priceId, isSubscription, coupon, userId, email } = req.body;
@@ -92,5 +143,52 @@ exports.getCheckoutSession = async (req, res) => {
   } catch (error) {
     console.error("Error retrieving checkout session:", error);
     res.status(500).json({ success: false, message: "Failed to retrieve checkout session" });
+  }
+};
+
+exports.finalizeCheckoutSession = async (req, res) => {
+  const { sessionId, userId } = req.body;
+
+  if (!sessionId || !userId) {
+    return res.status(400).json({
+      success: false,
+      message: "sessionId and userId are required"
+    });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const isPaidSession = session.payment_status === "paid";
+    const isCompletedSubscription =
+      session.mode === "subscription" && session.status === "complete";
+
+    if (!isPaidSession && !isCompletedSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: "Checkout session has not completed successfully."
+      });
+    }
+
+    if (session.client_reference_id && session.client_reference_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Checkout session does not belong to this user."
+      });
+    }
+
+    const activation = await activateUserSubscription(session, userId);
+
+    res.json({
+      success: true,
+      alreadyProcessed: activation.alreadyProcessed,
+      subscribedAt: activation.subscribedAt,
+      subscriptionEndsAt: activation.subscriptionEndsAt
+    });
+  } catch (error) {
+    console.error("Error finalizing checkout session:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to finalize checkout session"
+    });
   }
 };
