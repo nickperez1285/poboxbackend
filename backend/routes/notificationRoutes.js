@@ -25,11 +25,11 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
   };
 
   if (replyTo) {
-    payload.reply_to = typeof replyTo === "string" ? { email: replyTo } : replyTo;
+    payload.reply_to = replyTo;
   }
 
   if (template) {
-    payload.template = template;
+    payload.template_id = template;
   } else {
     payload.subject = subject;
     payload.text = text;
