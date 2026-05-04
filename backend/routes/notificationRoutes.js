@@ -21,12 +21,9 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
 
   const payload = {
     from,
-    to
+    to,
+    reply_to: replyTo
   };
-
-  if (replyTo) {
-    payload.reply_to = replyTo;
-  }
 
   if (template) {
     payload.template_id = template;
