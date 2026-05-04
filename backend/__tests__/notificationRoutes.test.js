@@ -1,7 +1,7 @@
 const express = require("express");
 const request = require("supertest");
 
-const docState = new Map();
+const mockDocState = new Map();
 
 const makeIncrement = (value) => ({ __increment: value });
 
@@ -32,16 +32,16 @@ jest.mock("../config/firebaseAdmin", () => {
   const getFirestore = () => ({
     doc: (path) => ({
       async get() {
-        const data = docState.get(path);
+        const data = mockDocState.get(path);
         return {
           exists: data !== undefined,
           data: () => data
         };
       },
       async set(payload, options = {}) {
-        const current = docState.get(path);
+        const current = mockDocState.get(path);
         const next = options.merge ? applyMerge(current, payload) : payload;
-        docState.set(path, next);
+        mockDocState.set(path, next);
       }
     })
   });
@@ -61,7 +61,7 @@ const buildApp = () => {
 
 describe("notificationRoutes", () => {
   beforeEach(() => {
-    docState.clear();
+    mockDocState.clear();
     process.env.RESEND_API_KEY = "test-resend-key";
     process.env.MAIL_FROM_EMAIL = "noreply@example.com";
     global.fetch = jest.fn(() =>
@@ -78,12 +78,12 @@ describe("notificationRoutes", () => {
   });
 
   it("records package check-in totals and moves first-time inactive users into trial", async () => {
-    docState.set("users/user-1", {
+    mockDocState.set("users/user-1", {
       email: "casey@example.com",
       status: "inactive",
       packagesCheckedIn: 0
     });
-    docState.set("partners/partner-1", {
+    mockDocState.set("partners/partner-1", {
       businessName: "Main Street Partner",
       packageCheckInCount: 0
     });
@@ -105,19 +105,19 @@ describe("notificationRoutes", () => {
 
     expect(response.status).toBe(200);
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(docState.get("users/user-1")).toEqual({
+    expect(mockDocState.get("users/user-1")).toEqual({
       email: "casey@example.com",
       status: "trial",
       packagesCheckedIn: 1
     });
-    expect(docState.get("partners/partner-1/packageCounts/user-1")).toEqual({
+    expect(mockDocState.get("partners/partner-1/packageCounts/user-1")).toEqual({
       count: 1,
       totalReceived: 1,
       totalPickedUp: 0,
       name: "Casey Customer",
       email: "casey@example.com"
     });
-    expect(docState.get("partners/partner-1")).toEqual({
+    expect(mockDocState.get("partners/partner-1")).toEqual({
       businessName: "Main Street Partner",
       packageCheckInCount: 1
     });
@@ -125,7 +125,7 @@ describe("notificationRoutes", () => {
   });
 
   it("records delivery totals and moves first-time non-active users back to inactive", async () => {
-    docState.set("users/user-1", {
+    mockDocState.set("users/user-1", {
       status: "trial",
       packagesDelivered: 0
     });
@@ -142,7 +142,7 @@ describe("notificationRoutes", () => {
       });
 
     expect(response.status).toBe(200);
-    expect(docState.get("users/user-1")).toEqual({
+    expect(mockDocState.get("users/user-1")).toEqual({
       status: "inactive",
       packagesDelivered: 2
     });

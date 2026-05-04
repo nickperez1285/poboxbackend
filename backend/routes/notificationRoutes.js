@@ -155,6 +155,7 @@ router.post("/package-check-in", async (req, res) => {
       }
 
       const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
+      const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
       const packageCountSnap = await partnerPackageRef.get();
       const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
       const currentCount = Number(packageCountData.count) || 0;
@@ -170,6 +171,16 @@ router.post("/package-check-in", async (req, res) => {
             totalPickedUp: currentTotalPickedUp,
             name: recipient.name || "Unnamed user",
             email: recipient.email || ""
+          },
+          { merge: true }
+        ),
+        userPackageHistoryRef.set(
+          {
+            partnerId,
+            partnerName: vendorName || "Unknown Partner",
+            totalReceived: currentTotalReceived + recipient.packageCount,
+            totalPickedUp: currentTotalPickedUp,
+            currentWaiting: currentCount + recipient.packageCount
           },
           { merge: true }
         )
@@ -189,7 +200,7 @@ router.post("/package-check-in", async (req, res) => {
 });
 
 router.post("/package-delivery", async (req, res) => {
-  const { recipients } = req.body || {};
+  const { partnerId, partnerName, recipients } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({ message: "Missing package delivery recipients" });
@@ -214,7 +225,33 @@ router.post("/package-delivery", async (req, res) => {
         updates.status = "inactive";
       }
 
-      await userRef.set(updates, { merge: true });
+      const writes = [userRef.set(updates, { merge: true })];
+
+      if (partnerId) {
+        const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
+        const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
+        const partnerPackageSnap = await partnerPackageRef.get();
+        const partnerPackageData = partnerPackageSnap.exists ? partnerPackageSnap.data() : {};
+        const currentCount = Number(partnerPackageData.count) || 0;
+        const currentTotalReceived = Number(partnerPackageData.totalReceived) || currentCount;
+        const currentTotalPickedUp = Number(partnerPackageData.totalPickedUp) || 0;
+        const nextWaiting = Math.max(currentCount - recipient.packageCount, 0);
+
+        writes.push(
+          userPackageHistoryRef.set(
+            {
+              partnerId,
+              partnerName: partnerName || partnerPackageData.name || "Unknown Partner",
+              totalReceived: currentTotalReceived,
+              totalPickedUp: currentTotalPickedUp + recipient.packageCount,
+              currentWaiting: nextWaiting
+            },
+            { merge: true }
+          )
+        );
+      }
+
+      await Promise.all(writes);
     }
 
     return res.status(200).json({ success: true });
