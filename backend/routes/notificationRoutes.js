@@ -1,6 +1,8 @@
 const express = require("express");
+const { admin, getFirestore } = require("../config/firebaseAdmin");
 
 const router = express.Router();
+const db = getFirestore();
 
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
@@ -105,15 +107,15 @@ router.post("/vendor-registration", async (req, res) => {
 });
 
 router.post("/package-check-in", async (req, res) => {
-  const { vendorName, recipients } = req.body || {};
+  const { vendorName, partnerId, recipients } = req.body || {};
 
-  if (!vendorName || !Array.isArray(recipients) || recipients.length === 0) {
-    return res.status(400).json({ message: "Missing package check in recipients" });
+  if (!vendorName || !partnerId || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ message: "Missing package check in recipients or partner ID" });
   }
 
-  const invalidRecipient = recipients.find((recipient) => !recipient?.email);
+  const invalidRecipient = recipients.find((recipient) => !recipient?.email || !recipient?.id || !recipient?.packageCount);
   if (invalidRecipient) {
-    return res.status(400).json({ message: "All package recipients must include an email address" });
+    return res.status(400).json({ message: "All package recipients must include id, email, and packageCount" });
   }
 
   try {
@@ -138,9 +140,86 @@ router.post("/package-check-in", async (req, res) => {
       }
     }
 
+    const partnerRef = db.doc(`partners/${partnerId}`);
+    const partnerPackageUpdates = recipients.map(async (recipient) => {
+      const userRef = db.doc(`users/${recipient.id}`);
+      const userSnap = await userRef.get();
+      const userData = userSnap.exists ? userSnap.data() : {};
+      const currentCheckedIn = Number(userData.packagesCheckedIn) || 0;
+      const updates = {
+        packagesCheckedIn: admin.firestore.FieldValue.increment(recipient.packageCount)
+      };
+
+      if (userData.status !== "active" && currentCheckedIn === 0) {
+        updates.status = "trial";
+      }
+
+      const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
+      const packageCountSnap = await partnerPackageRef.get();
+      const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
+      const currentCount = Number(packageCountData.count) || 0;
+      const currentTotalReceived = Number(packageCountData.totalReceived) || currentCount;
+      const currentTotalPickedUp = Number(packageCountData.totalPickedUp) || 0;
+
+      await Promise.all([
+        userRef.set(updates, { merge: true }),
+        partnerPackageRef.set(
+          {
+            count: currentCount + recipient.packageCount,
+            totalReceived: currentTotalReceived + recipient.packageCount,
+            totalPickedUp: currentTotalPickedUp,
+            name: recipient.name || "Unnamed user",
+            email: recipient.email || ""
+          },
+          { merge: true }
+        )
+      ]);
+    });
+
+    await Promise.all(partnerPackageUpdates);
+    await partnerRef.set(
+      { packageCheckInCount: admin.firestore.FieldValue.increment(recipients.reduce((sum, r) => sum + r.packageCount, 0)) },
+      { merge: true }
+    );
+
     return res.status(200).json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: error.message || "Package check in email delivery failed" });
+  }
+});
+
+router.post("/package-delivery", async (req, res) => {
+  const { recipients } = req.body || {};
+
+  if (!Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ message: "Missing package delivery recipients" });
+  }
+
+  const invalidRecipient = recipients.find((recipient) => !recipient?.id || !recipient?.packageCount);
+  if (invalidRecipient) {
+    return res.status(400).json({ message: "All delivery recipients must include id and packageCount" });
+  }
+
+  try {
+    for (const recipient of recipients) {
+      const userRef = db.doc(`users/${recipient.id}`);
+      const userSnap = await userRef.get();
+      const userData = userSnap.exists ? userSnap.data() : {};
+      const currentDelivered = Number(userData.packagesDelivered) || 0;
+      const updates = {
+        packagesDelivered: admin.firestore.FieldValue.increment(recipient.packageCount)
+      };
+
+      if (userData.status !== "active" && currentDelivered === 0) {
+        updates.status = "inactive";
+      }
+
+      await userRef.set(updates, { merge: true });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Package delivery update failed" });
   }
 });
 

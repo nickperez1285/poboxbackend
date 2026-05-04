@@ -17,6 +17,20 @@ const timestampToDate = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const cleanupZeroPackageCountsForActiveUser = async (userId) => {
+  const firestore = getFirestore();
+  const packageCountQuery = firestore
+    .collectionGroup("packageCounts")
+    .where(admin.firestore.FieldPath.documentId(), "==", userId);
+
+  const packageCountSnapshot = await packageCountQuery.get();
+  await Promise.all(
+    packageCountSnapshot.docs
+      .filter((doc) => (Number(doc.data().count) || 0) === 0)
+      .map((doc) => doc.ref.delete())
+  );
+};
+
 const activateUserSubscription = async (session, overrideUserId) => {
   const userId = overrideUserId || session.client_reference_id;
 
@@ -57,6 +71,8 @@ const activateUserSubscription = async (session, overrideUserId) => {
     },
     { merge: true }
   );
+
+  await cleanupZeroPackageCountsForActiveUser(userId);
 
   return {
     alreadyProcessed: false,
