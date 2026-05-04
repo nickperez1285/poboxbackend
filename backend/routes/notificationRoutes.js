@@ -21,9 +21,12 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
 
   const payload = {
     from,
-    to,
-    reply_to: replyTo
+    to
   };
+
+  if (replyTo) {
+    payload.reply_to = typeof replyTo === "string" ? { email: replyTo } : replyTo;
+  }
 
   if (template) {
     payload.template = template;
@@ -32,7 +35,7 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
     payload.text = text;
   }
 
-  if (templateData) {
+  if (templateData && typeof templateData === "object") {
     payload.template_data = templateData;
   }
 
