@@ -118,6 +118,32 @@ router.post("/vendor-registration", async (req, res) => {
   }
 });
 
+router.post("/referral", async (req, res) => {
+  const { email, additionalInfo } = req.body || {};
+
+  if (!email) {
+    return res.status(400).json({ message: "Referral email is required" });
+  }
+
+  try {
+    await sendEmail({
+      to: adminInbox,
+      replyTo: email,
+      subject: "New Porch P.O. Box referral submission",
+      text: [
+        "A new referral form was submitted.",
+        "",
+        `Referral Email: ${email}`,
+        `Additional Information: ${additionalInfo || "None provided"}`
+      ].join("\n")
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Referral email delivery failed" });
+  }
+});
+
 router.post("/partner-approved", async (req, res) => {
   const {
     businessName,
