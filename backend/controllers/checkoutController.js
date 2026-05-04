@@ -19,15 +19,25 @@ const timestampToDate = (value) => {
 
 const cleanupZeroPackageCountsForActiveUser = async (userId) => {
   const firestore = getFirestore();
-  const packageCountQuery = firestore
-    .collectionGroup("packageCounts")
-    .where(admin.firestore.FieldPath.documentId(), "==", userId);
+  const partnersSnapshot = await firestore.collection("partners").get();
 
-  const packageCountSnapshot = await packageCountQuery.get();
   await Promise.all(
-    packageCountSnapshot.docs
-      .filter((doc) => (Number(doc.data().count) || 0) === 0)
-      .map((doc) => doc.ref.delete())
+    partnersSnapshot.docs.map(async (partnerDoc) => {
+      const packageCountRef = firestore
+        .collection("partners")
+        .doc(partnerDoc.id)
+        .collection("packageCounts")
+        .doc(userId);
+      const packageCountSnapshot = await packageCountRef.get();
+
+      if (!packageCountSnapshot.exists) {
+        return;
+      }
+
+      if ((Number(packageCountSnapshot.data()?.count) || 0) === 0) {
+        await packageCountRef.delete();
+      }
+    })
   );
 };
 
