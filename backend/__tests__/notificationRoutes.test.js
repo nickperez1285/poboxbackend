@@ -167,7 +167,7 @@ describe("notificationRoutes", () => {
       "https://api.resend.com/emails",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"template_id":"partner approved"')
+        body: expect.stringContaining('"template_id":"95791182-4a1d-4500-b68b-095da9fe6963"')
       })
     );
   });

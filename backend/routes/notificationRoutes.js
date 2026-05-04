@@ -136,7 +136,7 @@ router.post("/partner-approved", async (req, res) => {
     await sendEmail({
       to: email,
       replyTo: adminInbox,
-      template: "partner approved",
+      template: "95791182-4a1d-4500-b68b-095da9fe6963",
       templateData: {
         businessName,
         streetAddress,
