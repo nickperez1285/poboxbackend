@@ -47,6 +47,7 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
+    console.error("Resend API error:", { status: response.status, errorBody, payload });
     throw new Error(
       errorBody?.message ||
         errorBody?.error?.message ||
