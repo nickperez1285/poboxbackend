@@ -136,14 +136,16 @@ router.post("/partner-approved", async (req, res) => {
     await sendEmail({
       to: email,
       replyTo: adminInbox,
-      template: "95791182-4a1d-4500-b68b-095da9fe6963",
-      templateData: {
-        businessName,
-        streetAddress,
-        city,
-        state,
-        zipCode
-      }
+      subject: "Your PorchPOBox Partner Request has been APPROVED!",
+      text: [
+        `Hello ${businessName},`,
+        "",
+        "Your request to become a PorchPOBox Partner has been APPROVED! Welcome to the community!",
+        "",
+        "You can now sign in to the partner portal to manage package check-ins and deliveries.",
+        "",
+        "Porch P.O. Box"
+      ].join("\n")
     });
 
     return res.status(200).json({ success: true });
