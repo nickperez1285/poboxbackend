@@ -7,7 +7,7 @@ const db = getFirestore();
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
 
-const sendEmail = async ({ to, replyTo, subject, text }) => {
+const sendEmail = async ({ to, replyTo, subject, text, template, templateData }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM_EMAIL;
 
@@ -19,19 +19,30 @@ const sendEmail = async ({ to, replyTo, subject, text }) => {
     throw new Error("Missing MAIL_FROM_EMAIL or SMTP_FROM_EMAIL");
   }
 
+  const payload = {
+    from,
+    to,
+    reply_to: replyTo
+  };
+
+  if (template) {
+    payload.template = template;
+  } else {
+    payload.subject = subject;
+    payload.text = text;
+  }
+
+  if (templateData) {
+    payload.template_data = templateData;
+  }
+
   const response = await fetch(resendApiUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      from,
-      to,
-      reply_to: replyTo,
-      subject,
-      text
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -124,29 +135,14 @@ router.post("/partner-approved", async (req, res) => {
     await sendEmail({
       to: email,
       replyTo: adminInbox,
-      subject: "Your Porch P.O. Box partner account is approved",
-      text: [
-        `Hello ${businessName},`,
-        "",
-        "Your Porch P.O. Box partner account has been approved and is now active.",
-        "",
-        "You can now sign in to the partner portal to manage package check-ins and deliveries.",
-        "",
-        streetAddress || city || state || zipCode
-          ? [
-              "Approved location:",
-              streetAddress || "",
-              [city, state].filter(Boolean).join(", "),
-              zipCode || ""
-            ]
-              .filter(Boolean)
-              .join("\n")
-          : null,
-        "",
-        "Porch P.O. Box"
-      ]
-        .filter(Boolean)
-        .join("\n")
+      template: "partner approved",
+      templateData: {
+        businessName,
+        streetAddress,
+        city,
+        state,
+        zipCode
+      }
     });
 
     return res.status(200).json({ success: true });
