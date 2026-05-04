@@ -148,4 +148,27 @@ describe("notificationRoutes", () => {
     });
     expect(admin.firestore.FieldValue.increment).toHaveBeenCalledWith(2);
   });
+
+  it("sends a partner approval welcome email", async () => {
+    const response = await request(buildApp())
+      .post("/api/notifications/partner-approved")
+      .send({
+        businessName: "Main Street Partner",
+        email: "partner@example.com",
+        streetAddress: "123 Main St",
+        city: "Springfield",
+        state: "CA",
+        zipCode: "90210"
+      });
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("partner@example.com")
+      })
+    );
+  });
 });

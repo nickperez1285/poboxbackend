@@ -106,6 +106,55 @@ router.post("/vendor-registration", async (req, res) => {
   }
 });
 
+router.post("/partner-approved", async (req, res) => {
+  const {
+    businessName,
+    email,
+    streetAddress,
+    city,
+    state,
+    zipCode
+  } = req.body || {};
+
+  if (!businessName || !email) {
+    return res.status(400).json({ message: "Missing partner approval email fields" });
+  }
+
+  try {
+    await sendEmail({
+      to: email,
+      replyTo: adminInbox,
+      subject: "Your Porch P.O. Box partner account is approved",
+      text: [
+        `Hello ${businessName},`,
+        "",
+        "Your Porch P.O. Box partner account has been approved and is now active.",
+        "",
+        "You can now sign in to the partner portal to manage package check-ins and deliveries.",
+        "",
+        streetAddress || city || state || zipCode
+          ? [
+              "Approved location:",
+              streetAddress || "",
+              [city, state].filter(Boolean).join(", "),
+              zipCode || ""
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : null,
+        "",
+        "Porch P.O. Box"
+      ]
+        .filter(Boolean)
+        .join("\n")
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Partner approval email failed" });
+  }
+});
+
 router.post("/package-check-in", async (req, res) => {
   const { vendorName, partnerId, recipients } = req.body || {};
 
