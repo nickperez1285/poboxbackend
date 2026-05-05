@@ -224,8 +224,14 @@ router.post("/package-check-in", async (req, res) => {
         packagesCheckedIn: admin.firestore.FieldValue.increment(recipient.packageCount)
       };
 
-      if (userData.status !== "active" && currentCheckedIn === 0) {
-        updates.status = "trial";
+      if (userData.status !== "active") {
+        if (currentCheckedIn === 0) {
+          // First ever package — grant trial
+          updates.status = "trial";
+        } else {
+          // Trial already used — mark inactive so all partners see red
+          updates.status = "inactive";
+        }
       }
 
       const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
