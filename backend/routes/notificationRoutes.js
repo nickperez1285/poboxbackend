@@ -187,30 +187,30 @@ router.post("/package-check-in", async (req, res) => {
     return res.status(400).json({ message: "Missing package check in recipients or partner ID" });
   }
 
-  const invalidRecipient = recipients.find((recipient) => !recipient?.email || !recipient?.id || !recipient?.packageCount);
+  const invalidRecipient = recipients.find((recipient) => !recipient?.id || !recipient?.packageCount);
   if (invalidRecipient) {
-    return res.status(400).json({ message: "All package recipients must include id, email, and packageCount" });
+    return res.status(400).json({ message: "All package recipients must include id and packageCount" });
   }
 
   try {
     for (const recipient of recipients) {
-      try {
-        await sendEmail({
-          to: recipient.email,
-          replyTo: adminInbox,
-          subject: `Package received at ${vendorName}`,
-          text: [
-            `Hello ${recipient.name || "Customer"},`,
-            "",
-            `You have received a package at ${vendorName}.`,
-            "",
-            "Porch P.O. Box"
-          ].join("\n")
-        });
-      } catch (error) {
-        throw new Error(
-          `Package email to ${recipient.email} failed: ${error.message || "Unknown delivery error"}`
-        );
+      if (recipient.email) {
+        try {
+          await sendEmail({
+            to: recipient.email,
+            replyTo: adminInbox,
+            subject: `Package received at ${vendorName}`,
+            text: [
+              `Hello ${recipient.name || "Customer"},`,
+              "",
+              `You have received a package at ${vendorName}.`,
+              "",
+              "Porch P.O. Box"
+            ].join("\n")
+          });
+        } catch (error) {
+          console.error(`Package email to ${recipient.email} failed:`, error.message);
+        }
       }
     }
 
