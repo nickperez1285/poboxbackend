@@ -307,6 +307,31 @@ router.post("/package-delivery", async (req, res) => {
 
       const writes = [userRef.set(updates, { merge: true })];
 
+      // Send welcome + subscribe reminder on first ever pickup
+      if (currentDelivered === 0 && userData.status !== "active" && recipient.email) {
+        const plansUrl = `${process.env.FRONTEND_URL || "https://porchpobox.com"}/plans`;
+        writes.push(
+          sendEmail({
+            to: recipient.email,
+            replyTo: adminInbox,
+            subject: "Welcome to Porch P.O. Box — Your first delivery is complete!",
+            text: [
+              `Hello ${recipient.name || "there"},`,
+              "",
+              "Your first package has been picked up — welcome to Porch P.O. Box!",
+              "",
+              "We hope the experience was convenient. If you'd like to keep using the service and receive future deliveries, subscribe to one of our plans:",
+              "",
+              plansUrl,
+              "",
+              "Questions? Just reply to this email.",
+              "",
+              "— The Porch P.O. Box Team"
+            ].join("\n")
+          })
+        );
+      }
+
       if (partnerId) {
         const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
         const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
