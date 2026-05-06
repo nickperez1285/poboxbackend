@@ -263,7 +263,15 @@ router.post("/package-check-in", async (req, res) => {
             currentWaiting: currentCount + recipient.packageCount
           },
           { merge: true }
-        )
+        ),
+        db.collection(`partners/${partnerId}/activityLog`).add({
+          type: "check-in",
+          customerId: recipient.id,
+          customerName: recipient.name || "Unknown",
+          customerEmail: recipient.email || "",
+          packageCount: recipient.packageCount,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        })
       ]);
     });
 
@@ -352,7 +360,15 @@ router.post("/package-delivery", async (req, res) => {
               currentWaiting: nextWaiting
             },
             { merge: true }
-          )
+          ),
+          db.collection(`partners/${partnerId}/activityLog`).add({
+            type: "delivery",
+            customerId: recipient.id,
+            customerName: recipient.name || "Unknown",
+            customerEmail: recipient.email || "",
+            packageCount: recipient.packageCount,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          })
         );
       }
 
