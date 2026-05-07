@@ -239,7 +239,7 @@ router.post("/package-check-in", async (req, res) => {
       const packageCountSnap = await partnerPackageRef.get();
       const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
       const currentCount = Number(packageCountData.count) || 0;
-      const currentTotalReceived = Number(packageCountData.totalReceived) || currentCount;
+      const currentTotalReceived = Number(packageCountData.totalReceived) || 0;
       const currentTotalPickedUp = Number(packageCountData.totalPickedUp) || 0;
 
       await Promise.all([
@@ -247,7 +247,7 @@ router.post("/package-check-in", async (req, res) => {
         partnerPackageRef.set(
           {
             count: currentCount + recipient.packageCount,
-            totalReceived: currentTotalReceived + recipient.packageCount,
+            totalReceived: currentTotalReceived,
             totalPickedUp: currentTotalPickedUp,
             name: recipient.name || "Unnamed user",
             email: recipient.email || ""
@@ -258,7 +258,7 @@ router.post("/package-check-in", async (req, res) => {
           {
             partnerId,
             partnerName: vendorName || "Unknown Partner",
-            totalReceived: currentTotalReceived + recipient.packageCount,
+            totalReceived: currentTotalReceived,
             totalPickedUp: currentTotalPickedUp,
             currentWaiting: currentCount + recipient.packageCount
           },
@@ -346,7 +346,7 @@ router.post("/package-delivery", async (req, res) => {
         const partnerPackageSnap = await partnerPackageRef.get();
         const partnerPackageData = partnerPackageSnap.exists ? partnerPackageSnap.data() : {};
         const currentCount = Number(partnerPackageData.count) || 0;
-        const currentTotalReceived = Number(partnerPackageData.totalReceived) || currentCount;
+        const currentTotalReceived = Number(partnerPackageData.totalReceived) || 0;
         const currentTotalPickedUp = Number(partnerPackageData.totalPickedUp) || 0;
         const nextWaiting = Math.max(currentCount - recipient.packageCount, 0);
 
@@ -355,7 +355,7 @@ router.post("/package-delivery", async (req, res) => {
             {
               partnerId,
               partnerName: partnerName || partnerPackageData.name || "Unknown Partner",
-              totalReceived: currentTotalReceived,
+              totalReceived: currentTotalReceived + recipient.packageCount,
               totalPickedUp: currentTotalPickedUp + recipient.packageCount,
               currentWaiting: nextWaiting
             },
@@ -368,7 +368,14 @@ router.post("/package-delivery", async (req, res) => {
             customerEmail: recipient.email || "",
             packageCount: recipient.packageCount,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
-          })
+          }),
+          partnerPackageRef.set(
+            {
+              totalReceived: currentTotalReceived + recipient.packageCount,
+              totalPickedUp: currentTotalPickedUp + recipient.packageCount
+            },
+            { merge: true }
+          )
         );
       }
 
