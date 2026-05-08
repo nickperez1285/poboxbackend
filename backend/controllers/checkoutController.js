@@ -84,6 +84,19 @@ const activateUserSubscription = async (session, overrideUserId) => {
 
   await cleanupZeroPackageCountsForActiveUser(userId);
 
+  // Log subscription payment to activity log
+  try {
+    await firestore.collection("activityLog").add({
+      type: "subscription",
+      userId,
+      userEmail: session.customer_email || currentData.email || "",
+      userName: currentData.name || "",
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (logErr) {
+    console.error("Failed to write subscription log:", logErr);
+  }
+
   return {
     alreadyProcessed: false,
     subscribedAt: admin.firestore.Timestamp.fromDate(purchaseDate),
