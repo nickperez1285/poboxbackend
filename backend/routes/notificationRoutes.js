@@ -388,4 +388,24 @@ router.post("/package-delivery", async (req, res) => {
   }
 });
 
+router.post("/user-signup", async (req, res) => {
+  const { name, email, authProvider } = req.body || {};
+  if (!email) {
+    return res.status(400).json({ message: "Missing email" });
+  }
+  try {
+    await db.collection("activityLog").add({
+      type: "signup",
+      userName: name || "Unknown",
+      userEmail: email,
+      authProvider: authProvider || "email",
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Failed to write signup log:", error);
+    return res.status(500).json({ message: error.message || "Failed to log signup" });
+  }
+});
+
 module.exports = router;
