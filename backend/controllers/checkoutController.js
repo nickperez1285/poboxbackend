@@ -97,6 +97,59 @@ const activateUserSubscription = async (session, overrideUserId) => {
     console.error("Failed to write subscription log:", logErr);
   }
 
+  // Send subscription confirmation email
+  try {
+    const toEmail = session.customer_email || currentData.email;
+    const toName = currentData.name || "there";
+    const endsDate = endDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const plansUrl = `${process.env.FRONTEND_URL || "https://porchpobox.com"}/profile`;
+
+    if (toEmail) {
+      const resendApiUrl = "https://api.resend.com/emails";
+      const apiKey = process.env.RESEND_API_KEY;
+      const from = process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM_EMAIL;
+
+      if (apiKey && from) {
+        await fetch(resendApiUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            from,
+            to: toEmail,
+            reply_to: "contact@porchpobox.com",
+            subject: "You're subscribed! Welcome to Porch P.O. Box 📦",
+            text: [
+              `Hello ${toName},`,
+              "",
+              "Congratulations — your Porch P.O. Box subscription is now active!",
+              "",
+              "You can now have packages delivered to your preferred partner location and pick them up at your convenience.",
+              "",
+              `Your subscription is active through ${endsDate}.`,
+              "",
+              "Here's what to do next:",
+              "  1. Make sure you have a preferred location set in your profile.",
+              "  2. Use your partner location's address when placing orders online.",
+              "  3. You'll get an email notification as soon as a package is checked in for you.",
+              "",
+              `View your profile: ${plansUrl}`,
+              "",
+              "Thank you for subscribing. We're glad to have you!",
+              "",
+              "\u2014 The Porch P.O. Box Team"
+            ].join("\n")
+          })
+        });
+        console.log(`Subscription confirmation email sent to ${toEmail}`);
+      }
+    }
+  } catch (emailErr) {
+    console.error("Failed to send subscription confirmation email:", emailErr);
+  }
+
   return {
     alreadyProcessed: false,
     subscribedAt: admin.firestore.Timestamp.fromDate(purchaseDate),
