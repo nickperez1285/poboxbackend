@@ -56,6 +56,23 @@ const sendEmail = async ({ to, replyTo, subject, text, template, templateData })
   }
 };
 
+router.post("/test-email", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: "Missing email" });
+  try {
+    await sendEmail({
+      to: email,
+      replyTo: adminInbox,
+      subject: "Porch P.O. Box — Email Test",
+      text: "This is a test email from Porch P.O. Box. If you received this, email notifications are working correctly."
+    });
+    return res.status(200).json({ success: true, message: `Test email sent to ${email}` });
+  } catch (error) {
+    console.error("Test email failed:", error);
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 router.post("/vendor-registration", async (req, res) => {
   const {
     businessName,
