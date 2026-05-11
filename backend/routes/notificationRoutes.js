@@ -203,14 +203,19 @@ router.post("/package-check-in", async (req, res) => {
             text: [
               `Hello ${recipient.name || "Customer"},`,
               "",
-              `You have received a package at ${vendorName}.`,
+              `Good news! A package has been checked in for you at ${vendorName}.`,
+              "",
+              "You can pick it up at your convenience during store hours.",
               "",
               "Porch P.O. Box"
             ].join("\n")
           });
+          console.log(`Check-in email sent to ${recipient.email}`);
         } catch (error) {
           console.error(`Package email to ${recipient.email} failed:`, error.message);
         }
+      } else {
+        console.warn(`Recipient ${recipient.id} has no email — skipping notification`);
       }
     }
 
