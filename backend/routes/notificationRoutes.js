@@ -166,7 +166,8 @@ router.post("/partner-approved", async (req, res) => {
     streetAddress,
     city,
     state,
-    zipCode
+    zipCode,
+    referredBy
   } = req.body || {};
 
   if (!businessName || !email) {
@@ -174,6 +175,7 @@ router.post("/partner-approved", async (req, res) => {
   }
 
   try {
+    // Send approval email to partner
     await sendEmail({
       to: email,
       replyTo: adminInbox,
@@ -188,6 +190,52 @@ router.post("/partner-approved", async (req, res) => {
         <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
       `)
     });
+
+    // Handle referral reward if a referral code was used
+    if (referredBy) {
+      try {
+        const referrerSnap = await db.collection("users").where("referralCode", "==", referredBy).limit(1).get();
+        if (!referrerSnap.empty) {
+          const referrerDoc = referrerSnap.docs[0];
+          const referrer = referrerDoc.data();
+
+          // Grant 1 year of free service
+          const now = new Date();
+          const oneYearFromNow = new Date(now);
+          oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+          await referrerDoc.ref.update({
+            status: "active",
+            subscribedAt: admin.firestore.Timestamp.fromDate(now),
+            subscriptionEndsAt: admin.firestore.Timestamp.fromDate(oneYearFromNow),
+            referralRewardGranted: true,
+            referralRewardGrantedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          // Send reward email to referrer
+          if (referrer.email) {
+            await sendEmail({
+              to: referrer.email,
+              replyTo: adminInbox,
+              subject: "🎉 You've earned a FREE year of Porch P.O. Box!",
+              html: htmlEmail(`
+                <h2 style="margin:0 0 16px;color:#121212">You've Earned Free Service for a Year!</h2>
+                <p>Hello ${referrer.name || "there"},</p>
+                <p>Great news! The business you referred &mdash; <strong>${businessName}</strong> &mdash; has just been approved as a Porch P.O. Box partner.</p>
+                <p>As a thank you for your referral, you've been awarded <strong style="color:#1a7f37">one full year of free Porch P.O. Box service</strong>!</p>
+                <p>Your subscription is now active through <strong>${oneYearFromNow.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</strong>.</p>
+                <p style="text-align:center;margin:28px 0">
+                  <a href="https://porchpobox.com/profile" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">View My Profile</a>
+                </p>
+                <p style="color:#666;font-size:14px">Thank you for helping grow the Porch P.O. Box community!</p>
+              `)
+            });
+          }
+        }
+      } catch (referralErr) {
+        console.error("Referral reward error:", referralErr.message);
+      }
+    }
 
     return res.status(200).json({ success: true });
   } catch (error) {
@@ -208,8 +256,36 @@ router.post("/package-check-in", async (req, res) => {
   }
 
   try {
-    for (const recipient of recipients) {
-      if (recipient.email) {
+    const partnerRef = db.doc(`partners/${partnerId}`);
+    const now = Date.now();
+    const TEN_MINUTES = 10 * 60 * 1000;
+
+    const partnerPackageUpdates = recipients.map(async (recipient) => {
+      const userRef = db.doc(`users/${recipient.id}`);
+      const userSnap = await userRef.get();
+      const userData = userSnap.exists ? userSnap.data() : {};
+      const currentCheckedIn = Number(userData.packagesCheckedIn) || 0;
+
+      const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
+      const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
+      const packageCountSnap = await partnerPackageRef.get();
+      const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
+      const currentCount = Number(packageCountData.count) || 0;
+      const currentTotalReceived = Number(packageCountData.totalReceived) || 0;
+      const currentTotalPickedUp = Number(packageCountData.totalPickedUp) || 0;
+
+      const userUpdates = {
+        packagesCheckedIn: admin.firestore.FieldValue.increment(recipient.packageCount)
+      };
+      if (userData.status !== "active") {
+        userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
+      }
+
+      // Only send email if notifications are enabled (default true) and no duplicate within 10 minutes
+      const lastEmailAt = packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
+      const shouldSendEmail = recipient.email && userData.notificationsEnabled !== false && (now - lastEmailAt > TEN_MINUTES);
+
+      if (shouldSendEmail) {
         try {
           await sendEmail({
             to: recipient.email,
@@ -224,51 +300,25 @@ router.post("/package-check-in", async (req, res) => {
             `)
           });
           console.log(`Check-in email sent to ${recipient.email}`);
-        } catch (error) {
-          console.error(`Package email to ${recipient.email} failed:`, error.message);
+        } catch (emailErr) {
+          console.error(`Package email to ${recipient.email} failed:`, emailErr.message);
         }
-      } else {
+      } else if (!recipient.email) {
         console.warn(`Recipient ${recipient.id} has no email — skipping notification`);
+      } else {
+        console.log(`Skipping duplicate check-in email for ${recipient.email} — sent within last 10 minutes`);
       }
-    }
-
-    const partnerRef = db.doc(`partners/${partnerId}`);
-    const partnerPackageUpdates = recipients.map(async (recipient) => {
-      const userRef = db.doc(`users/${recipient.id}`);
-      const userSnap = await userRef.get();
-      const userData = userSnap.exists ? userSnap.data() : {};
-      const currentCheckedIn = Number(userData.packagesCheckedIn) || 0;
-      const updates = {
-        packagesCheckedIn: admin.firestore.FieldValue.increment(recipient.packageCount)
-      };
-
-      if (userData.status !== "active") {
-        if (currentCheckedIn === 0) {
-          // First ever package — grant trial
-          updates.status = "trial";
-        } else {
-          // Trial already used — mark inactive so all partners see red
-          updates.status = "inactive";
-        }
-      }
-
-      const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
-      const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
-      const packageCountSnap = await partnerPackageRef.get();
-      const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
-      const currentCount = Number(packageCountData.count) || 0;
-      const currentTotalReceived = Number(packageCountData.totalReceived) || 0;
-      const currentTotalPickedUp = Number(packageCountData.totalPickedUp) || 0;
 
       await Promise.all([
-        userRef.set(updates, { merge: true }),
+        userRef.set(userUpdates, { merge: true }),
         partnerPackageRef.set(
           {
             count: currentCount + recipient.packageCount,
-            totalReceived: currentTotalReceived,
+            totalReceived: currentTotalReceived + recipient.packageCount,
             totalPickedUp: currentTotalPickedUp,
             name: recipient.name || "Unnamed user",
-            email: recipient.email || ""
+            email: recipient.email || "",
+            ...(shouldSendEmail ? { lastCheckInEmailAt: admin.firestore.FieldValue.serverTimestamp() } : {})
           },
           { merge: true }
         ),
@@ -276,7 +326,7 @@ router.post("/package-check-in", async (req, res) => {
           {
             partnerId,
             partnerName: vendorName || "Unknown Partner",
-            totalReceived: currentTotalReceived,
+            totalReceived: currentTotalReceived + recipient.packageCount,
             totalPickedUp: currentTotalPickedUp,
             currentWaiting: currentCount + recipient.packageCount
           },
