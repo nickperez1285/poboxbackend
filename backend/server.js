@@ -9,6 +9,7 @@ const productRoutes = require('./routes/productRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const authRoutes = require("./routes/auth");
 const debugRoutes = require("./routes/debugRoutes");
+const renewalRemindersRoute = require("./routes/cron/renewalReminders");
 const cors = require('cors');
 // removed for vercel 
 // const dotenv = require('dotenv');
@@ -53,6 +54,7 @@ app.use(
 );
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/cron", renewalRemindersRoute);
 
   app.use("/api", customerRoutes);
   app.use("/api", priceRoutes);
