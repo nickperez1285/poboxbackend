@@ -22,6 +22,7 @@ const sendEmail = async ({ to, replyTo, subject, html }) => {
   const payload = {
     from,
     to,
+    subject,
     reply_to: replyTo
   };
 
