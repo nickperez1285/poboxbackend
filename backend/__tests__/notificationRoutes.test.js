@@ -175,6 +175,20 @@ describe("POST /package-check-in", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("always sends email on first check-in regardless of timing", async () => {
+    // No lastCheckInEmailAt set — first time this user has been checked in
+    mockDocState.set("users/u1", { email: "a@test.com", status: "trial", packagesCheckedIn: 0, notificationsEnabled: true });
+    mockDocState.set("partners/p1/packageCounts/u1", { count: 0, totalReceived: 0, totalPickedUp: 0 }); // no lastCheckInEmailAt
+    mockDocState.set("partners/p1", { packageCheckInCount: 0 });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Shop A", partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("skips duplicate email sent within 10 minutes", async () => {
     const recentTimestamp = { toMillis: () => Date.now() - 2 * 60 * 1000 }; // 2 min ago
     mockDocState.set("users/u1", { email: "a@test.com", status: "active", packagesCheckedIn: 1, notificationsEnabled: true });
@@ -254,6 +268,19 @@ describe("POST /package-delivery", () => {
     expect(res.status).toBe(200);
     expect(mockDocState.get("users/u1").status).toBe("inactive");
     expect(mockDocState.get("users/u1").packagesDelivered).toBe(1);
+  });
+
+  it("decrements count on delivery so packages in stock is accurate", async () => {
+    mockDocState.set("users/u1", { status: "active", packagesDelivered: 2 });
+    mockDocState.set("partners/p1/packageCounts/u1", { count: 3, totalReceived: 3, totalPickedUp: 0 });
+
+    await request(buildApp()).post("/api/notifications/package-delivery").send({
+      partnerId: "p1", partnerName: "Shop A",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 2 }]
+    });
+
+    expect(mockDocState.get("partners/p1/packageCounts/u1").count).toBe(1);
+    expect(mockDocState.get("partners/p1/packageCounts/u1").totalPickedUp).toBe(2);
   });
 
   it("does not change status for active users on delivery", async () => {

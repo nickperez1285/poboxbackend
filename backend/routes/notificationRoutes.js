@@ -281,9 +281,10 @@ router.post("/package-check-in", async (req, res) => {
         userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
       }
 
-      // Only send email if notifications are enabled (default true) and no duplicate within 10 minutes
+      // Send email if notifications enabled. Dedup only applies if they've been emailed before — always send on first check-in.
       const lastEmailAt = packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
-      const shouldSendEmail = recipient.email && userData.notificationsEnabled !== false && (now - lastEmailAt > TEN_MINUTES);
+      const isFirstCheckIn = !packageCountData.lastCheckInEmailAt;
+      const shouldSendEmail = recipient.email && userData.notificationsEnabled !== false && (isFirstCheckIn || (now - lastEmailAt > TEN_MINUTES));
 
       if (shouldSendEmail) {
         try {
@@ -436,6 +437,7 @@ router.post("/package-delivery", async (req, res) => {
           }),
           partnerPackageRef.set(
             {
+              count: nextWaiting,
               totalReceived: currentTotalReceived + recipient.packageCount,
               totalPickedUp: currentTotalPickedUp + recipient.packageCount
             },
