@@ -41,6 +41,21 @@ const cleanupZeroPackageCountsForActiveUser = async (userId) => {
   );
 };
 
+/** Partner document id from user.prefLocation (string id or Firestore reference shape). */
+const getPreferredPartnerId = (prefLocation) => {
+  if (!prefLocation || prefLocation === null) return null;
+  const id = prefLocation.id;
+  if (typeof id === "string" && id.trim()) return id.trim();
+  if (id && typeof id === "object") {
+    if (typeof id.id === "string" && id.id) return id.id;
+    if (typeof id.path === "string") {
+      const parts = id.path.split("/");
+      if (parts[0] === "partners" && parts[1]) return parts[1];
+    }
+  }
+  return null;
+};
+
 const activateUserSubscription = async (session, overrideUserId) => {
   const userId = overrideUserId || session.client_reference_id;
 
@@ -65,10 +80,10 @@ const activateUserSubscription = async (session, overrideUserId) => {
     ? currentData.subscriptionEndsAt.toDate()
     : null;
   const purchaseDate = new Date();
+  const extendingBeforeExpiry =
+    existingEndDate && existingEndDate.getTime() > Date.now();
   const extensionBaseDate =
-    existingEndDate && existingEndDate.getTime() > Date.now()
-      ? existingEndDate
-      : purchaseDate;
+    extendingBeforeExpiry ? existingEndDate : purchaseDate;
   const endDate = new Date(extensionBaseDate.getTime() + THIRTY_DAYS_IN_MS);
 
   await userRef.set(
@@ -83,6 +98,26 @@ const activateUserSubscription = async (session, overrideUserId) => {
   );
 
   await cleanupZeroPackageCountsForActiveUser(userId);
+
+  const preferredPartnerId = getPreferredPartnerId(currentData.prefLocation);
+  if (preferredPartnerId && !extendingBeforeExpiry) {
+    try {
+      await firestore
+        .collection("partners")
+        .doc(preferredPartnerId)
+        .collection("activityLog")
+        .add({
+          type: "subscription",
+          customerId: userId,
+          customerName: currentData.name || "",
+          customerEmail: session.customer_email || currentData.email || "",
+          packageCount: 0,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (partnerLogErr) {
+      console.error("Failed to write partner subscription activity:", partnerLogErr);
+    }
+  }
 
   // Log subscription payment to activity log
   try {

@@ -4,6 +4,30 @@ const { admin, getFirestore } = require("../config/firebaseAdmin");
 const router = express.Router();
 const db = getFirestore();
 
+/** True if the user has a saved preferred partner location (non-empty partner id). */
+function userHasPreferredLocation(userData) {
+  const pl = userData && userData.prefLocation;
+  const id = pl && pl.id;
+  if (typeof id === "string" && id.length > 0) return true;
+  // Firestore may deserialize document IDs as DocumentReference in some paths
+  if (id && typeof id === "object" && typeof id.path === "string" && id.path.includes("partners/")) {
+    return true;
+  }
+  return false;
+}
+
+/** Normalize partner profile fields (camelCase or legacy snake_case). */
+function partnerAddressFromPartnerDoc(partnerData) {
+  const p = partnerData || {};
+  return {
+    businessName: p.businessName || p.business_name || "",
+    streetAddress: p.streetAddress || p.street_address || "",
+    city: p.city || "",
+    state: p.state || "",
+    zipCode: p.zipCode || p.zip_code || ""
+  };
+}
+
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
 
@@ -271,6 +295,8 @@ router.post("/package-check-in", async (req, res) => {
 
   try {
     const partnerRef = db.doc(`partners/${partnerId}`);
+    const partnerSnap = await partnerRef.get();
+    const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
     const now = Date.now();
     const TEN_MINUTES = 10 * 60 * 1000;
 
@@ -295,18 +321,19 @@ router.post("/package-check-in", async (req, res) => {
         userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
       }
 
-      // Set default prefLocation to this partner if the user has never had one set
-      if (!userData.prefLocation && currentCheckedIn === 0) {
-        const partnerSnap = await partnerRef.get();
-        const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
+      // Default preferred location to this partner whenever the user has no valid pref saved.
+      // (Previously required packagesCheckedIn === 0, which skipped users with stale counts or legacy data.)
+      if (!userHasPreferredLocation(userData)) {
+        const addr = partnerAddressFromPartnerDoc(partnerData);
         userUpdates.prefLocation = {
-          id: partnerId,
-          businessName: partnerData.businessName || vendorName || "Unknown Partner",
-          streetAddress: partnerData.streetAddress || "",
-          city: partnerData.city || "",
-          state: partnerData.state || "",
-          zipCode: partnerData.zipCode || ""
+          id: String(partnerId),
+          businessName: addr.businessName || vendorName || "Unknown Partner",
+          streetAddress: addr.streetAddress,
+          city: addr.city,
+          state: addr.state,
+          zipCode: addr.zipCode
         };
+        console.log(`[package-check-in] Set default prefLocation for user ${recipient.id} → partner ${partnerId}`);
       }
 
       // Send email if notifications enabled. Dedup only applies if they've been emailed before — always send on first check-in.

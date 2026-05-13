@@ -136,6 +136,147 @@ describe("POST /package-check-in", () => {
     expect(mockDocState.get("partners/p1/packageCounts/u1").count).toBe(1);
     expect(mockDocState.get("partners/p1/packageCounts/u1").totalReceived).toBe(1);
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(mockDocState.get("users/u1").prefLocation).toEqual({
+      id: "p1",
+      businessName: "Shop A",
+      streetAddress: "",
+      city: "",
+      state: "",
+      zipCode: ""
+    });
+  });
+
+  it("sets prefLocation from partner document on first check-in when partner has address fields", async () => {
+    mockDocState.set("users/u1", { email: "a@test.com", status: "trial", packagesCheckedIn: 0, notificationsEnabled: true });
+    mockDocState.set("partners/p1", {
+      packageCheckInCount: 0,
+      businessName: "Main St Market",
+      streetAddress: "10 Main St",
+      city: "Austin",
+      state: "TX",
+      zipCode: "78701"
+    });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Fallback Name",
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(mockDocState.get("users/u1").prefLocation).toEqual({
+      id: "p1",
+      businessName: "Main St Market",
+      streetAddress: "10 Main St",
+      city: "Austin",
+      state: "TX",
+      zipCode: "78701"
+    });
+  });
+
+  it("does not overwrite prefLocation when user already has a preferred partner", async () => {
+    const existing = {
+      id: "p-other",
+      businessName: "Other Shop",
+      streetAddress: "99 Oak",
+      city: "Dallas",
+      state: "TX",
+      zipCode: "75001"
+    };
+    mockDocState.set("users/u1", {
+      email: "a@test.com",
+      status: "active",
+      packagesCheckedIn: 0,
+      notificationsEnabled: true,
+      prefLocation: existing
+    });
+    mockDocState.set("partners/p1", { packageCheckInCount: 0, businessName: "This Partner" });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "This Partner",
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(mockDocState.get("users/u1").prefLocation).toEqual(existing);
+  });
+
+  it("sets prefLocation on first check-in when prefLocation has no partner id", async () => {
+    mockDocState.set("users/u1", {
+      email: "a@test.com",
+      status: "trial",
+      packagesCheckedIn: 0,
+      notificationsEnabled: true,
+      prefLocation: { businessName: "stale", streetAddress: "" }
+    });
+    mockDocState.set("partners/p1", { packageCheckInCount: 0, businessName: "Real Partner", streetAddress: "1 Rd", city: "X", state: "YY", zipCode: "00000" });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Real Partner",
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(mockDocState.get("users/u1").prefLocation.id).toBe("p1");
+    expect(mockDocState.get("users/u1").prefLocation.businessName).toBe("Real Partner");
+  });
+
+  it("sets prefLocation when missing even if packagesCheckedIn was already > 0 (legacy / partial data)", async () => {
+    mockDocState.set("users/u1", {
+      email: "a@test.com",
+      status: "trial",
+      packagesCheckedIn: 2,
+      notificationsEnabled: true
+    });
+    mockDocState.set("partners/p1", {
+      packageCheckInCount: 0,
+      business_name: "Snake Case Shop",
+      street_address: "9 Elm St",
+      city: "Dallas",
+      state: "TX",
+      zip_code: "75201"
+    });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Snake Case Shop",
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(mockDocState.get("users/u1").prefLocation).toEqual({
+      id: "p1",
+      businessName: "Snake Case Shop",
+      streetAddress: "9 Elm St",
+      city: "Dallas",
+      state: "TX",
+      zipCode: "75201"
+    });
+  });
+
+  it("does not change prefLocation on second package check-in", async () => {
+    const afterFirst = {
+      id: "p1",
+      businessName: "Shop A",
+      streetAddress: "",
+      city: "",
+      state: "",
+      zipCode: ""
+    };
+    mockDocState.set("users/u1", {
+      email: "a@test.com",
+      status: "trial",
+      packagesCheckedIn: 1,
+      notificationsEnabled: true,
+      prefLocation: afterFirst
+    });
+    mockDocState.set("partners/p2", { packageCheckInCount: 0, businessName: "Other Location" });
+
+    await request(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Other Location",
+      partnerId: "p2",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(mockDocState.get("users/u1").prefLocation).toEqual(afterFirst);
   });
 
   it("sets already-trialed user to inactive on second check-in", async () => {
