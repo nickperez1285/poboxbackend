@@ -10,7 +10,12 @@ function userHasPreferredLocation(userData) {
   const id = pl && pl.id;
   if (typeof id === "string" && id.length > 0) return true;
   // Firestore may deserialize document IDs as DocumentReference in some paths
-  if (id && typeof id === "object" && typeof id.path === "string" && id.path.includes("partners/")) {
+  if (
+    id &&
+    typeof id === "object" &&
+    typeof id.path === "string" &&
+    id.path.includes("partners/")
+  ) {
     return true;
   }
   return false;
@@ -24,7 +29,7 @@ function partnerAddressFromPartnerDoc(partnerData) {
     streetAddress: p.streetAddress || p.street_address || "",
     city: p.city || "",
     state: p.state || "",
-    zipCode: p.zipCode || p.zip_code || ""
+    zipCode: p.zipCode || p.zip_code || "",
   };
 }
 
@@ -47,7 +52,7 @@ const sendEmail = async ({ to, replyTo, subject, html }) => {
     from,
     to,
     subject,
-    reply_to: replyTo
+    reply_to: replyTo,
   };
 
   if (html) {
@@ -58,23 +63,28 @@ const sendEmail = async ({ to, replyTo, subject, html }) => {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    console.error("Resend API error:", { status: response.status, errorBody, payload });
+    console.error("Resend API error:", {
+      status: response.status,
+      errorBody,
+      payload,
+    });
     throw new Error(
       errorBody?.message ||
         errorBody?.error?.message ||
-        `Resend API request failed with status ${response.status}`
+        `Resend API request failed with status ${response.status}`,
     );
   }
 };
 
-const htmlEmail = (body) => `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;width:100%"><tr><td style="background:#121212;padding:28px 32px;text-align:center"><img src="https://porchpobox.com/porchlogo.png" alt="Porch P.O. Box" style="height:56px;display:block;margin:0 auto" /></td></tr><tr><td style="padding:36px 32px;color:#222;font-size:15px;line-height:1.7">${body}</td></tr><tr><td style="background:#f8f8f8;border-top:1px solid #eee;padding:20px 32px;text-align:center"><img src="https://porchpobox.com/logo.png" alt="Porch P.O. Box" style="height:48px;display:block;margin:0 auto 12px" /><p style="margin:0 0 4px;font-size:13px;color:#888">Porch P.O. Box &mdash; Convenient Package Receiving</p><p style="margin:0;font-size:13px"><a href="mailto:contact@porchpobox.com" style="color:#d4af37;text-decoration:none">contact@porchpobox.com</a></p></td></tr></table></td></tr></table></body></html>`;
+const htmlEmail = (body) =>
+  `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;width:100%"><tr><td style="background:#121212;padding:28px 32px;text-align:center"><img src="https://porchpobox.com/porchlogo.png" alt="Porch P.O. Box" style="height:56px;display:block;margin:0 auto" /></td></tr><tr><td style="padding:36px 32px;color:#222;font-size:15px;line-height:1.7">${body}</td></tr><tr><td style="background:#f8f8f8;border-top:1px solid #eee;padding:20px 32px;text-align:center"><img src="https://porchpobox.com/logo.png" alt="Porch P.O. Box" style="height:48px;display:block;margin:0 auto 12px" /><p style="margin:0 0 4px;font-size:13px;color:#888">Porch P.O. Box &mdash; Convenient Package Receiving</p><p style="margin:0;font-size:13px"><a href="mailto:contact@porchpobox.com" style="color:#d4af37;text-decoration:none">contact@porchpobox.com</a></p></td></tr></table></td></tr></table></body></html>`;
 
 router.post("/test-email", async (req, res) => {
   const { email } = req.body || {};
@@ -87,9 +97,11 @@ router.post("/test-email", async (req, res) => {
       html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">Email Test</h2>
         <p>This is a test email from Porch P.O. Box. If you received this, email notifications are working correctly.</p>
-      `)
+      `),
     });
-    return res.status(200).json({ success: true, message: `Test email sent to ${email}` });
+    return res
+      .status(200)
+      .json({ success: true, message: `Test email sent to ${email}` });
   } catch (error) {
     console.error("Test email failed:", error);
     return res.status(500).json({ message: error.message });
@@ -104,7 +116,7 @@ router.post("/vendor-registration", async (req, res) => {
     streetAddress,
     city,
     state,
-    zipCode
+    zipCode,
   } = req.body || {};
 
   if (
@@ -116,7 +128,9 @@ router.post("/vendor-registration", async (req, res) => {
     !state ||
     !zipCode
   ) {
-    return res.status(400).json({ message: "Missing vendor registration fields" });
+    return res
+      .status(400)
+      .json({ message: "Missing vendor registration fields" });
   }
 
   try {
@@ -136,7 +150,7 @@ router.post("/vendor-registration", async (req, res) => {
         <p style="text-align:center;margin:28px 0">
           <a href="https://porchpobox.com/admin" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">Review in Admin Portal</a>
         </p>
-      `)
+      `),
     });
 
     await sendEmail({
@@ -148,12 +162,14 @@ router.post("/vendor-registration", async (req, res) => {
         <p>Thank you for applying to become a Porch P.O. Box vendor.</p>
         <p>Your registration has been received and is currently under review. We'll reach out once the review is complete.</p>
         <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
-      `)
+      `),
     });
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: error.message || "Email delivery failed" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Email delivery failed" });
   }
 });
 
@@ -168,9 +184,16 @@ router.post("/referral", async (req, res) => {
     let referrerName = null;
     if (referralCode) {
       try {
-        const referrerSnap = await db.collection("users").where("referralCode", "==", referralCode.toUpperCase()).limit(1).get();
+        const referrerSnap = await db
+          .collection("users")
+          .where("referralCode", "==", referralCode.toUpperCase())
+          .limit(1)
+          .get();
         if (!referrerSnap.empty) {
-          referrerName = referrerSnap.docs[0].data().name || referrerSnap.docs[0].data().email || null;
+          referrerName =
+            referrerSnap.docs[0].data().name ||
+            referrerSnap.docs[0].data().email ||
+            null;
         }
       } catch (err) {
         console.error("Error looking up referral code:", err);
@@ -188,12 +211,14 @@ router.post("/referral", async (req, res) => {
           <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Referral Code</td><td style="padding:8px 12px;background:#fafafa">${referralCode ? `<strong>${referralCode.toUpperCase()}</strong>${referrerName ? ` &mdash; submitted by <strong>${referrerName}</strong>` : " (code not matched to any user)"}` : "Not provided"}</td></tr>
           <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Additional Info</td><td style="padding:8px 12px;background:#fafafa">${additionalInfo || "None provided"}</td></tr>
         </table>
-      `)
+      `),
     });
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: error.message || "Referral email delivery failed" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Referral email delivery failed" });
   }
 });
 
@@ -205,11 +230,13 @@ router.post("/partner-approved", async (req, res) => {
     city,
     state,
     zipCode,
-    referredBy
+    referredBy,
   } = req.body || {};
 
   if (!businessName || !email) {
-    return res.status(400).json({ message: "Missing partner approval email fields" });
+    return res
+      .status(400)
+      .json({ message: "Missing partner approval email fields" });
   }
 
   try {
@@ -226,13 +253,17 @@ router.post("/partner-approved", async (req, res) => {
           <a href="https://porchpobox.com/partner" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">Go to Partner Portal</a>
         </p>
         <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
-      `)
+      `),
     });
 
     // Handle referral reward if a referral code was used
     if (referredBy) {
       try {
-        const referrerSnap = await db.collection("users").where("referralCode", "==", referredBy).limit(1).get();
+        const referrerSnap = await db
+          .collection("users")
+          .where("referralCode", "==", referredBy)
+          .limit(1)
+          .get();
         if (!referrerSnap.empty) {
           const referrerDoc = referrerSnap.docs[0];
           const referrer = referrerDoc.data();
@@ -245,9 +276,11 @@ router.post("/partner-approved", async (req, res) => {
           await referrerDoc.ref.update({
             status: "active",
             subscribedAt: admin.firestore.Timestamp.fromDate(now),
-            subscriptionEndsAt: admin.firestore.Timestamp.fromDate(oneYearFromNow),
+            subscriptionEndsAt:
+              admin.firestore.Timestamp.fromDate(oneYearFromNow),
             referralRewardGranted: true,
-            referralRewardGrantedAt: admin.firestore.FieldValue.serverTimestamp()
+            referralRewardGrantedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
           });
 
           // Send reward email to referrer
@@ -266,7 +299,7 @@ router.post("/partner-approved", async (req, res) => {
                   <a href="https://porchpobox.com/profile" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">View My Profile</a>
                 </p>
                 <p style="color:#666;font-size:14px">Thank you for helping grow the Porch P.O. Box community!</p>
-              `)
+              `),
             });
           }
         }
@@ -277,20 +310,35 @@ router.post("/partner-approved", async (req, res) => {
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: error.message || "Partner approval email failed" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Partner approval email failed" });
   }
 });
 
 router.post("/package-check-in", async (req, res) => {
   const { vendorName, partnerId, recipients } = req.body || {};
 
-  if (!vendorName || !partnerId || !Array.isArray(recipients) || recipients.length === 0) {
-    return res.status(400).json({ message: "Missing package check in recipients or partner ID" });
+  if (
+    !vendorName ||
+    !partnerId ||
+    !Array.isArray(recipients) ||
+    recipients.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Missing package check in recipients or partner ID" });
   }
 
-  const invalidRecipient = recipients.find((recipient) => !recipient?.id || !recipient?.packageCount);
+  const invalidRecipient = recipients.find(
+    (recipient) => !recipient?.id || !recipient?.packageCount,
+  );
   if (invalidRecipient) {
-    return res.status(400).json({ message: "All package recipients must include id and packageCount" });
+    return res
+      .status(400)
+      .json({
+        message: "All package recipients must include id and packageCount",
+      });
   }
 
   try {
@@ -306,16 +354,24 @@ router.post("/package-check-in", async (req, res) => {
       const userData = userSnap.exists ? userSnap.data() : {};
       const currentCheckedIn = Number(userData.packagesCheckedIn) || 0;
 
-      const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
-      const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
+      const partnerPackageRef = db.doc(
+        `partners/${partnerId}/packageCounts/${recipient.id}`,
+      );
+      const userPackageHistoryRef = db.doc(
+        `users/${recipient.id}/packageHistory/${partnerId}`,
+      );
       const packageCountSnap = await partnerPackageRef.get();
-      const packageCountData = packageCountSnap.exists ? packageCountSnap.data() : {};
+      const packageCountData = packageCountSnap.exists
+        ? packageCountSnap.data()
+        : {};
       const currentCount = Number(packageCountData.count) || 0;
       const currentTotalReceived = Number(packageCountData.totalReceived) || 0;
       const currentTotalPickedUp = Number(packageCountData.totalPickedUp) || 0;
 
       const userUpdates = {
-        packagesCheckedIn: admin.firestore.FieldValue.increment(recipient.packageCount)
+        packagesCheckedIn: admin.firestore.FieldValue.increment(
+          recipient.packageCount,
+        ),
       };
       if (userData.status !== "active") {
         userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
@@ -331,15 +387,23 @@ router.post("/package-check-in", async (req, res) => {
           streetAddress: addr.streetAddress,
           city: addr.city,
           state: addr.state,
-          zipCode: addr.zipCode
+          zipCode: addr.zipCode,
         };
-        console.log(`[package-check-in] Set default prefLocation for user ${recipient.id} → partner ${partnerId}`);
+        console.log(
+          `[package-check-in] Set default prefLocation for user ${recipient.id} → partner ${partnerId}`,
+        );
       }
 
       // Send email if notifications enabled. Dedup only applies if they've been emailed before — always send on first check-in.
-      const lastEmailAt = packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
-      const isFirstCheckIn = !packageCountData.lastCheckInEmailAt || packageCountData.lastCheckInEmailAt === null;
-      const shouldSendEmail = recipient.email && userData.notificationsEnabled !== false && (isFirstCheckIn || (now - lastEmailAt > TEN_MINUTES));
+      const lastEmailAt =
+        packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
+      const isFirstCheckIn =
+        !packageCountData.lastCheckInEmailAt ||
+        packageCountData.lastCheckInEmailAt === null;
+      const shouldSendEmail =
+        recipient.email &&
+        userData.notificationsEnabled !== false &&
+        (isFirstCheckIn || now - lastEmailAt > TEN_MINUTES);
 
       if (shouldSendEmail) {
         try {
@@ -353,16 +417,23 @@ router.post("/package-check-in", async (req, res) => {
               <p>A package has been checked in for you at <strong>${vendorName}</strong>.</p>
               <p>You can pick it up at your convenience during store hours.</p>
               <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
-            `)
+            `),
           });
           console.log(`Check-in email sent to ${recipient.email}`);
         } catch (emailErr) {
-          console.error(`Package email to ${recipient.email} failed:`, emailErr.message);
+          console.error(
+            `Package email to ${recipient.email} failed:`,
+            emailErr.message,
+          );
         }
       } else if (!recipient.email) {
-        console.warn(`Recipient ${recipient.id} has no email — skipping notification`);
+        console.warn(
+          `Recipient ${recipient.id} has no email — skipping notification`,
+        );
       } else {
-        console.log(`Skipping duplicate check-in email for ${recipient.email} — sent within last 10 minutes`);
+        console.log(
+          `Skipping duplicate check-in email for ${recipient.email} — sent within last 10 minutes`,
+        );
       }
 
       await Promise.all([
@@ -374,9 +445,14 @@ router.post("/package-check-in", async (req, res) => {
             totalPickedUp: currentTotalPickedUp,
             name: recipient.name || "Unnamed user",
             email: recipient.email || "",
-            ...(shouldSendEmail ? { lastCheckInEmailAt: admin.firestore.FieldValue.serverTimestamp() } : {})
+            ...(shouldSendEmail
+              ? {
+                  lastCheckInEmailAt:
+                    admin.firestore.FieldValue.serverTimestamp(),
+                }
+              : {}),
           },
-          { merge: true }
+          { merge: true },
         ),
         userPackageHistoryRef.set(
           {
@@ -384,9 +460,9 @@ router.post("/package-check-in", async (req, res) => {
             partnerName: vendorName || "Unknown Partner",
             totalReceived: currentTotalReceived + recipient.packageCount,
             totalPickedUp: currentTotalPickedUp,
-            currentWaiting: currentCount + recipient.packageCount
+            currentWaiting: currentCount + recipient.packageCount,
           },
-          { merge: true }
+          { merge: true },
         ),
         db.collection(`partners/${partnerId}/activityLog`).add({
           type: "check-in",
@@ -394,20 +470,28 @@ router.post("/package-check-in", async (req, res) => {
           customerName: recipient.name || "Unknown",
           customerEmail: recipient.email || "",
           packageCount: recipient.packageCount,
-          timestamp: admin.firestore.FieldValue.serverTimestamp()
-        })
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        }),
       ]);
     });
 
     await Promise.all(partnerPackageUpdates);
     await partnerRef.set(
-      { packageCheckInCount: admin.firestore.FieldValue.increment(recipients.reduce((sum, r) => sum + r.packageCount, 0)) },
-      { merge: true }
+      {
+        packageCheckInCount: admin.firestore.FieldValue.increment(
+          recipients.reduce((sum, r) => sum + r.packageCount, 0),
+        ),
+      },
+      { merge: true },
     );
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: error.message || "Package check in email delivery failed" });
+    return res
+      .status(500)
+      .json({
+        message: error.message || "Package check in email delivery failed",
+      });
   }
 });
 
@@ -415,12 +499,20 @@ router.post("/package-delivery", async (req, res) => {
   const { partnerId, partnerName, recipients } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
-    return res.status(400).json({ message: "Missing package delivery recipients" });
+    return res
+      .status(400)
+      .json({ message: "Missing package delivery recipients" });
   }
 
-  const invalidRecipient = recipients.find((recipient) => !recipient?.id || !recipient?.packageCount);
+  const invalidRecipient = recipients.find(
+    (recipient) => !recipient?.id || !recipient?.packageCount,
+  );
   if (invalidRecipient) {
-    return res.status(400).json({ message: "All delivery recipients must include id and packageCount" });
+    return res
+      .status(400)
+      .json({
+        message: "All delivery recipients must include id and packageCount",
+      });
   }
 
   try {
@@ -430,7 +522,9 @@ router.post("/package-delivery", async (req, res) => {
       const userData = userSnap.exists ? userSnap.data() : {};
       const currentDelivered = Number(userData.packagesDelivered) || 0;
       const updates = {
-        packagesDelivered: admin.firestore.FieldValue.increment(recipient.packageCount)
+        packagesDelivered: admin.firestore.FieldValue.increment(
+          recipient.packageCount,
+        ),
       };
 
       if (userData.status !== "active" && currentDelivered === 0) {
@@ -453,39 +547,48 @@ router.post("/package-delivery", async (req, res) => {
             html: htmlEmail(`
               <h2 style="margin:0 0 16px;color:#121212">${isFirstDelivery ? "Your First Delivery is Complete!" : "Package Picked Up!"}</h2>
               <p>Hello ${recipient.name || "there"},</p>
-              ${isFirstDelivery
-                ? `<p>Your first package has been picked up &mdash; welcome to Porch P.O. Box!</p><p>We hope the experience was convenient. Subscribe to keep receiving packages:</p>`
-                : `<p>Your package has been picked up at <strong>${partnerName || "your Porch P.O. Box location"}</strong>. Subscribe to keep using the service:</p>`
+              ${
+                isFirstDelivery
+                  ? `<p>Your first package has been picked up &mdash; welcome to Porch P.O. Box!</p><p>We hope the experience was convenient. Subscribe to keep receiving packages:</p>`
+                  : `<p>Your package has been picked up at <strong>${partnerName || "your Porch P.O. Box location"}</strong>. Subscribe to keep using the service:</p>`
               }
               <p style="text-align:center;margin:28px 0">
                 <a href="${plansUrl}" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">View Plans</a>
               </p>
               <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
-            `)
-          })
+            `),
+          }),
         );
       }
 
       if (partnerId) {
-        const partnerPackageRef = db.doc(`partners/${partnerId}/packageCounts/${recipient.id}`);
-        const userPackageHistoryRef = db.doc(`users/${recipient.id}/packageHistory/${partnerId}`);
+        const partnerPackageRef = db.doc(
+          `partners/${partnerId}/packageCounts/${recipient.id}`,
+        );
+        const userPackageHistoryRef = db.doc(
+          `users/${recipient.id}/packageHistory/${partnerId}`,
+        );
         const partnerPackageSnap = await partnerPackageRef.get();
-        const partnerPackageData = partnerPackageSnap.exists ? partnerPackageSnap.data() : {};
+        const partnerPackageData = partnerPackageSnap.exists
+          ? partnerPackageSnap.data()
+          : {};
         const currentCount = Number(partnerPackageData.count) || 0;
-        const currentTotalReceived = Number(partnerPackageData.totalReceived) || 0;
-        const currentTotalPickedUp = Number(partnerPackageData.totalPickedUp) || 0;
+        const currentTotalReceived =
+          Number(partnerPackageData.totalReceived) || 0;
+        const currentTotalPickedUp =
+          Number(partnerPackageData.totalPickedUp) || 0;
         const nextWaiting = Math.max(currentCount - recipient.packageCount, 0);
 
         writes.push(
           userPackageHistoryRef.set(
             {
               partnerId,
-              partnerName: partnerName || partnerPackageData.name || "Unknown Partner",
-              totalReceived: currentTotalReceived + recipient.packageCount,
+              partnerName:
+                partnerName || partnerPackageData.name || "Unknown Partner",
               totalPickedUp: currentTotalPickedUp + recipient.packageCount,
-              currentWaiting: nextWaiting
+              currentWaiting: nextWaiting,
             },
-            { merge: true }
+            { merge: true },
           ),
           db.collection(`partners/${partnerId}/activityLog`).add({
             type: "delivery",
@@ -493,17 +596,17 @@ router.post("/package-delivery", async (req, res) => {
             customerName: recipient.name || "Unknown",
             customerEmail: recipient.email || "",
             packageCount: recipient.packageCount,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
           }),
           partnerPackageRef.set(
             {
               count: nextWaiting,
-              totalReceived: currentTotalReceived + recipient.packageCount,
               totalPickedUp: currentTotalPickedUp + recipient.packageCount,
-              lastCheckInEmailAt: null
+              lastCheckInEmailAt: null,
+              ...(nextWaiting <= 0 ? { holdForResubscribe: false } : {}),
             },
-            { merge: true }
-          )
+            { merge: true },
+          ),
         );
       }
 
@@ -512,7 +615,9 @@ router.post("/package-delivery", async (req, res) => {
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ message: error.message || "Package delivery update failed" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Package delivery update failed" });
   }
 });
 
@@ -527,12 +632,14 @@ router.post("/user-signup", async (req, res) => {
       userName: name || "Unknown",
       userEmail: email,
       authProvider: authProvider || "email",
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("Failed to write signup log:", error);
-    return res.status(500).json({ message: error.message || "Failed to log signup" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Failed to log signup" });
   }
 });
 
