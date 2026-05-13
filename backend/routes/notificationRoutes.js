@@ -384,19 +384,24 @@ router.post("/package-delivery", async (req, res) => {
 
       const writes = [userRef.set(updates, { merge: true })];
 
-      // Send welcome + subscribe reminder on first ever pickup
-      if (currentDelivered === 0 && userData.status !== "active" && recipient.email) {
+      // Send delivery email to all non-active users on every delivery
+      if (userData.status !== "active" && recipient.email) {
         const plansUrl = `${process.env.FRONTEND_URL || "https://porchpobox.com"}/plans`;
-          writes.push(
+        const isFirstDelivery = currentDelivered === 0;
+        writes.push(
           sendEmail({
             to: recipient.email,
             replyTo: adminInbox,
-            subject: "Welcome to Porch P.O. Box — Your first delivery is complete!",
+            subject: isFirstDelivery
+              ? "Welcome to Porch P.O. Box \u2014 Your first delivery is complete!"
+              : `Your package has been picked up at ${partnerName || "your Porch P.O. Box location"}`,
             html: htmlEmail(`
-              <h2 style="margin:0 0 16px;color:#121212">Your First Delivery is Complete!</h2>
+              <h2 style="margin:0 0 16px;color:#121212">${isFirstDelivery ? "Your First Delivery is Complete!" : "Package Picked Up!"}</h2>
               <p>Hello ${recipient.name || "there"},</p>
-              <p>Your first package has been picked up &mdash; welcome to Porch P.O. Box!</p>
-              <p>We hope the experience was convenient. If you'd like to keep using the service and receive future deliveries, subscribe to one of our plans:</p>
+              ${isFirstDelivery
+                ? `<p>Your first package has been picked up &mdash; welcome to Porch P.O. Box!</p><p>We hope the experience was convenient. Subscribe to keep receiving packages:</p>`
+                : `<p>Your package has been picked up at <strong>${partnerName || "your Porch P.O. Box location"}</strong>. Subscribe to keep using the service:</p>`
+              }
               <p style="text-align:center;margin:28px 0">
                 <a href="${plansUrl}" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">View Plans</a>
               </p>
