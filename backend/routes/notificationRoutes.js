@@ -282,6 +282,20 @@ router.post("/package-check-in", async (req, res) => {
         userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
       }
 
+      // Set default prefLocation to this partner if the user has never had one set
+      if (!userData.prefLocation && currentCheckedIn === 0) {
+        const partnerSnap = await partnerRef.get();
+        const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
+        userUpdates.prefLocation = {
+          id: partnerId,
+          businessName: partnerData.businessName || vendorName || "Unknown Partner",
+          streetAddress: partnerData.streetAddress || "",
+          city: partnerData.city || "",
+          state: partnerData.state || "",
+          zipCode: partnerData.zipCode || ""
+        };
+      }
+
       // Send email if notifications enabled. Dedup only applies if they've been emailed before — always send on first check-in.
       const lastEmailAt = packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
       const isFirstCheckIn = !packageCountData.lastCheckInEmailAt || packageCountData.lastCheckInEmailAt === null;
