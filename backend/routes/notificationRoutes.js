@@ -134,21 +134,34 @@ router.post("/vendor-registration", async (req, res) => {
 });
 
 router.post("/referral", async (req, res) => {
-  const { email, additionalInfo } = req.body || {};
+  const { email, referralCode, additionalInfo } = req.body || {};
 
   if (!email) {
     return res.status(400).json({ message: "Referral email is required" });
   }
 
   try {
+    let referrerName = null;
+    if (referralCode) {
+      try {
+        const referrerSnap = await db.collection("users").where("referralCode", "==", referralCode.toUpperCase()).limit(1).get();
+        if (!referrerSnap.empty) {
+          referrerName = referrerSnap.docs[0].data().name || referrerSnap.docs[0].data().email || null;
+        }
+      } catch (err) {
+        console.error("Error looking up referral code:", err);
+      }
+    }
+
     await sendEmail({
       to: adminInbox,
       replyTo: email,
-      subject: "New Porch P.O. Box referral submission",
+      subject: "New Porch P.O. Box Referral Submission",
       html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">New Referral Submission</h2>
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
           <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Referral Email</td><td style="padding:8px 12px;background:#fafafa">${email}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Referral Code</td><td style="padding:8px 12px;background:#fafafa">${referralCode ? `<strong>${referralCode.toUpperCase()}</strong>${referrerName ? ` &mdash; submitted by <strong>${referrerName}</strong>` : " (code not matched to any user)"}` : "Not provided"}</td></tr>
           <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Additional Info</td><td style="padding:8px 12px;background:#fafafa">${additionalInfo || "None provided"}</td></tr>
         </table>
       `)
