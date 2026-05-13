@@ -283,7 +283,7 @@ router.post("/package-check-in", async (req, res) => {
 
       // Send email if notifications enabled. Dedup only applies if they've been emailed before — always send on first check-in.
       const lastEmailAt = packageCountData.lastCheckInEmailAt?.toMillis?.() || 0;
-      const isFirstCheckIn = !packageCountData.lastCheckInEmailAt;
+      const isFirstCheckIn = !packageCountData.lastCheckInEmailAt || packageCountData.lastCheckInEmailAt === null;
       const shouldSendEmail = recipient.email && userData.notificationsEnabled !== false && (isFirstCheckIn || (now - lastEmailAt > TEN_MINUTES));
 
       if (shouldSendEmail) {
@@ -444,7 +444,8 @@ router.post("/package-delivery", async (req, res) => {
             {
               count: nextWaiting,
               totalReceived: currentTotalReceived + recipient.packageCount,
-              totalPickedUp: currentTotalPickedUp + recipient.packageCount
+              totalPickedUp: currentTotalPickedUp + recipient.packageCount,
+              lastCheckInEmailAt: null
             },
             { merge: true }
           )
