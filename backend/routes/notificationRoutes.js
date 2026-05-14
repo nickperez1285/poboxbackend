@@ -244,15 +244,26 @@ router.post("/partner-approved", async (req, res) => {
     await sendEmail({
       to: email,
       replyTo: adminInbox,
-      subject: "Your Porch P.O. Box Partner Request has been APPROVED!",
+      subject: "Welcome to Porch P.O. Box! Your Partner Account is Active 📦",
       html: htmlEmail(`
-        <h2 style="margin:0 0 16px;color:#121212">You're Approved, ${businessName}!</h2>
-        <p>Your request to become a Porch P.O. Box Partner has been <strong style="color:#1a7f37">approved</strong>. Welcome to the community!</p>
-        <p>You can now sign in to the partner portal to manage package check-ins and deliveries.</p>
-        <p style="text-align:center;margin:28px 0">
-          <a href="https://porchpobox.com/partner" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">Go to Partner Portal</a>
+        <h2 style="margin:0 0 16px;color:#121212">Welcome to the Porch P.O. Box Network!</h2>
+        <p>Hello <strong>${businessName}</strong>,</p>
+        <p>We are excited to inform you that your application has been <strong>approved</strong> and your location is now <strong>active</strong> on the Porch P.O. Box network! Welcome to the community.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+        <h3 style="color:#d4af37;margin-bottom:12px">🚀 Getting Started</h3>
+        <ul style="padding-left:20px;margin-bottom:24px">
+          <li><strong>Verify Your Hours:</strong> Log in to the <a href="https://porchpobox.com/partner" style="color:#d4af37;text-decoration:none;font-weight:bold">Partner Portal</a> and ensure your store hours are accurate. This ensures customers know when they can pick up their packages.</li>
+          <li><strong>Check-In Packages:</strong> When a package arrives for a Porch P.O. Box customer, use the "Package Check-In" tool on your dashboard. The customer will be automatically notified via email once you enter the quantity.</li>
+          <li><strong>ID Verification:</strong> When a customer arrives for pickup, please verify their ID matches the name on the package before marking it as delivered in the system.</li>
+          <li><strong>Manage Payouts:</strong> You can track your earnings and active subscriber counts directly from your "Partner Profile" page.</li>
+        </ul>
+        <p style="text-align:center;margin:32px 0">
+          <a href="https://porchpobox.com/partner" style="background:#121212;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:bold;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,0.15)">Access Your Dashboard</a>
         </p>
-        <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
+        <p style="background:#fdf8e6;padding:16px;border-radius:8px;border:1px solid #f0c040;font-size:14px">
+          <strong>Pro Tip:</strong> Most partners place a small sign or designated shelf in a secure area to keep Porch P.O. Box deliveries organized and separate from store inventory.
+        </p>
+        <p style="color:#666;font-size:14px;margin-top:24px">If you have any questions, simply reply to this email. We're here to help you succeed!</p>
       `),
     });
 
@@ -334,11 +345,9 @@ router.post("/package-check-in", async (req, res) => {
     (recipient) => !recipient?.id || !recipient?.packageCount,
   );
   if (invalidRecipient) {
-    return res
-      .status(400)
-      .json({
-        message: "All package recipients must include id and packageCount",
-      });
+    return res.status(400).json({
+      message: "All package recipients must include id and packageCount",
+    });
   }
 
   try {
@@ -487,11 +496,9 @@ router.post("/package-check-in", async (req, res) => {
 
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res
-      .status(500)
-      .json({
-        message: error.message || "Package check in email delivery failed",
-      });
+    return res.status(500).json({
+      message: error.message || "Package check in email delivery failed",
+    });
   }
 });
 
@@ -508,11 +515,9 @@ router.post("/package-delivery", async (req, res) => {
     (recipient) => !recipient?.id || !recipient?.packageCount,
   );
   if (invalidRecipient) {
-    return res
-      .status(400)
-      .json({
-        message: "All delivery recipients must include id and packageCount",
-      });
+    return res.status(400).json({
+      message: "All delivery recipients must include id and packageCount",
+    });
   }
 
   try {
