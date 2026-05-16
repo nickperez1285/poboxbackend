@@ -1,5 +1,6 @@
 const express = require("express");
 const { admin, getFirestore } = require("../config/firebaseAdmin");
+const twilio = require("twilio");
 
 const router = express.Router();
 const db = getFirestore();
@@ -35,6 +36,34 @@ function partnerAddressFromPartnerDoc(partnerData) {
 
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
+
+// Initialize Twilio Client
+const twilioClient =
+  process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    : null;
+
+/**
+ * Sends an SMS alert to a user via Twilio.
+ */
+const sendSMS = async (to, body) => {
+  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
+    console.warn("[Twilio] Credentials missing. SMS skipped.");
+    return;
+  }
+  if (!to) return;
+
+  try {
+    await twilioClient.messages.create({
+      body,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: to.startsWith("+") ? to : `+1${to.replace(/\D/g, "")}`, // Ensures E.164 format for US numbers
+    });
+    console.log(`[Twilio] SMS sent to ${to}`);
+  } catch (err) {
+    console.error(`[Twilio] Failed to send SMS to ${to}:`, err.message);
+  }
+};
 
 const sendEmail = async ({ to, replyTo, subject, html }) => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -442,6 +471,19 @@ router.post("/package-check-in", async (req, res) => {
       } else {
         console.log(
           `Skipping duplicate check-in email for ${recipient.email} — sent within last 10 minutes`,
+        );
+      }
+
+      // Send SMS alert if notifications are enabled and number exists
+      const userPhone = userData.phoneNumber || recipient.phoneNumber;
+      if (
+        userPhone &&
+        userData.notificationsEnabled !== false &&
+        (isFirstCheckIn || now - lastEmailAt > TEN_MINUTES)
+      ) {
+        await sendSMS(
+          userPhone,
+          `📦 Porch P.O. Box: A package has arrived for you at ${vendorName}! Pick it up during store hours.`,
         );
       }
 
