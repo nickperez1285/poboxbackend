@@ -4,6 +4,13 @@ exports.createOneTimePayment = async (req, res) => {
   const { priceId, userId, email } = req.body;
   const baseUrl = process.env.BASE_URL;
 
+  if (!userId || userId !== req.authUid) {
+    return res.status(403).json({
+      success: false,
+      message: "userId must match signed-in account",
+    });
+  }
+
   if (!priceId) {
     return res.status(400).json({ success: false, message: 'Price ID is required' });
   }
@@ -27,8 +34,8 @@ exports.createOneTimePayment = async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
-      client_reference_id: userId || undefined,
-      customer_email: email || undefined,
+      client_reference_id: userId,
+      customer_email: email || req.auth?.email || undefined,
       line_items: [
         {
           price: priceId,

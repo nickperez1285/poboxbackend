@@ -9,6 +9,11 @@ const productRoutes = require('./routes/productRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const authRoutes = require("./routes/auth");
 const debugRoutes = require("./routes/debugRoutes");
+const {
+  requireAuth,
+  loadAuthContext,
+  requireAdmin,
+} = require("./middleware/firebaseAuth");
 const renewalRemindersRoute = require("./routes/cron/renewalReminders");
 const cors = require('cors');
 // removed for vercel 
@@ -53,7 +58,7 @@ app.use(
   })
 );
 app.use("/api/notifications", notificationRoutes);
-app.use("/api/debug", debugRoutes);
+app.use("/api/debug", requireAuth, loadAuthContext, requireAdmin, debugRoutes);
 app.use("/api/cron", renewalRemindersRoute);
 
   app.use("/api", customerRoutes);

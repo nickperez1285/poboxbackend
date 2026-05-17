@@ -1,6 +1,13 @@
 const express = require("express");
 const { admin, getFirestore } = require("../config/firebaseAdmin");
 const twilio = require("twilio");
+const {
+  requireAuth,
+  loadAuthContext,
+  requireAdmin,
+  requirePartnerAccount,
+  requireApprovedPartner,
+} = require("../middleware/firebaseAuth");
 
 const router = express.Router();
 const db = getFirestore();
@@ -61,7 +68,9 @@ const sendSMS = async (to, body) => {
     });
     console.log(`[Twilio] SMS sent to ${to}`);
   } catch (err) {
-    console.error(`[Twilio] Failed to send SMS to ${to}:`, err.message);
+    console.error(
+      `[Twilio] Error: ${err.code} - ${err.message}. Ensure the "to" number is verified if using a trial account.`,
+    );
   }
 };
 
@@ -115,7 +124,7 @@ const sendEmail = async ({ to, replyTo, subject, html }) => {
 const htmlEmail = (body) =>
   `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;width:100%"><tr><td style="background:#121212;padding:28px 32px;text-align:center"><img src="https://porchpobox.com/porchlogo.png" alt="Porch P.O. Box" style="height:56px;display:block;margin:0 auto" /></td></tr><tr><td style="padding:36px 32px;color:#222;font-size:15px;line-height:1.7">${body}</td></tr><tr><td style="background:#f8f8f8;border-top:1px solid #eee;padding:20px 32px;text-align:center"><img src="https://porchpobox.com/logo.png" alt="Porch P.O. Box" style="height:48px;display:block;margin:0 auto 12px" /><p style="margin:0 0 4px;font-size:13px;color:#888">Porch P.O. Box &mdash; Convenient Package Receiving</p><p style="margin:0;font-size:13px"><a href="mailto:contact@porchpobox.com" style="color:#d4af37;text-decoration:none">contact@porchpobox.com</a></p></td></tr></table></td></tr></table></body></html>`;
 
-router.post("/test-email", async (req, res) => {
+router.post("/test-email", requireAuth, loadAuthContext, requireAdmin, async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ message: "Missing email" });
   try {
@@ -137,7 +146,44 @@ router.post("/test-email", async (req, res) => {
   }
 });
 
-router.post("/vendor-registration", async (req, res) => {
+router.post("/test-sms", requireAuth, loadAuthContext, requireAdmin, async (req, res) => {
+  const { phoneNumber, message } = req.body || {};
+  if (!phoneNumber)
+    return res.status(400).json({ message: "Missing phoneNumber" });
+
+  console.log(`[Twilio] Manual test trigger for ${phoneNumber}`);
+  try {
+    // We call sendSMS directly to verify credentials and connectivity
+    if (!twilioClient) {
+      return res
+        .status(500)
+        .json({
+          message: "Twilio client not initialized. Check your .env variables.",
+        });
+    }
+
+    await sendSMS(
+      phoneNumber,
+      message || "Test message from Porch P.O. Box! 📦",
+    );
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: `Test request processed. Check your server logs for results.`,
+      });
+  } catch (error) {
+    console.error("Test SMS route crash:", error);
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post(
+  "/vendor-registration",
+  requireAuth,
+  loadAuthContext,
+  requirePartnerAccount,
+  async (req, res) => {
   const {
     businessName,
     email,
@@ -160,6 +206,11 @@ router.post("/vendor-registration", async (req, res) => {
     return res
       .status(400)
       .json({ message: "Missing vendor registration fields" });
+  }
+
+  const tokenEmail = (req.auth.email || "").toLowerCase();
+  if (tokenEmail !== String(email).toLowerCase()) {
+    return res.status(403).json({ message: "Email must match signed-in account" });
   }
 
   try {
@@ -251,7 +302,7 @@ router.post("/referral", async (req, res) => {
   }
 });
 
-router.post("/partner-approved", async (req, res) => {
+router.post("/partner-approved", requireAuth, loadAuthContext, requireAdmin, async (req, res) => {
   const {
     businessName,
     email,
@@ -356,7 +407,12 @@ router.post("/partner-approved", async (req, res) => {
   }
 });
 
-router.post("/package-check-in", async (req, res) => {
+router.post(
+  "/package-check-in",
+  requireAuth,
+  loadAuthContext,
+  requireApprovedPartner,
+  async (req, res) => {
   const { vendorName, partnerId, recipients } = req.body || {};
 
   if (
@@ -544,7 +600,12 @@ router.post("/package-check-in", async (req, res) => {
   }
 });
 
-router.post("/package-delivery", async (req, res) => {
+router.post(
+  "/package-delivery",
+  requireAuth,
+  loadAuthContext,
+  requireApprovedPartner,
+  async (req, res) => {
   const { partnerId, partnerName, recipients } = req.body || {};
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -668,11 +729,17 @@ router.post("/package-delivery", async (req, res) => {
   }
 });
 
-router.post("/user-signup", async (req, res) => {
+router.post("/user-signup", requireAuth, async (req, res) => {
   const { name, email, authProvider } = req.body || {};
   if (!email) {
     return res.status(400).json({ message: "Missing email" });
   }
+
+  const tokenEmail = (req.auth.email || "").toLowerCase();
+  if (tokenEmail !== String(email).toLowerCase()) {
+    return res.status(403).json({ message: "Email must match signed-in account" });
+  }
+
   try {
     await db.collection("activityLog").add({
       type: "signup",

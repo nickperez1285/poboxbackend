@@ -196,6 +196,13 @@ exports.createCheckoutSession = async (req, res) => {
   const { priceId, isSubscription, coupon, userId, email } = req.body;
   const baseUrl = process.env.BASE_URL;
 
+  if (!userId || userId !== req.authUid) {
+    return res.status(403).json({
+      success: false,
+      message: "userId must match signed-in account",
+    });
+  }
+
   if (!priceId) {
     return res.status(400).json({ success: false, message: 'Price ID is required' });
   }
@@ -227,8 +234,8 @@ exports.createCheckoutSession = async (req, res) => {
     const sessionConfig = {
       mode,
       payment_method_types: ['card'],
-      client_reference_id: userId || undefined,
-      customer_email: email || undefined,
+      client_reference_id: userId,
+      customer_email: email || req.auth.email || undefined,
       line_items: [
         {
           price: priceId,
@@ -266,7 +273,7 @@ exports.getCheckoutSession = async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = req.stripeSession || (await stripe.checkout.sessions.retrieve(sessionId));
 
     res.json({
       success: true,
@@ -297,7 +304,8 @@ exports.finalizeCheckoutSession = async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session =
+      req.stripeSession || (await stripe.checkout.sessions.retrieve(sessionId));
     const isPaidSession = session.payment_status === "paid";
     const isCompletedSubscription =
       session.mode === "subscription" && session.status === "complete";
@@ -309,10 +317,17 @@ exports.finalizeCheckoutSession = async (req, res) => {
       });
     }
 
-    if (session.client_reference_id && session.client_reference_id !== userId) {
+    if (!session.client_reference_id || session.client_reference_id !== userId) {
       return res.status(403).json({
         success: false,
         message: "Checkout session does not belong to this user."
+      });
+    }
+
+    if (userId !== req.authUid) {
+      return res.status(403).json({
+        success: false,
+        message: "userId must match signed-in account",
       });
     }
 

@@ -1,6 +1,36 @@
 const express = require("express");
 const request = require("supertest");
 
+jest.mock("../middleware/firebaseAuth", () => ({
+  requireAuth: (req, res, next) => {
+    req.authUid = req.headers["x-test-uid"] || "test-user";
+    req.auth = { uid: req.authUid, email: req.headers["x-test-email"] || "test@example.com" };
+    next();
+  },
+  loadAuthContext: (req, res, next) => {
+    req.isAdmin = req.headers["x-test-admin"] === "true";
+    next();
+  },
+  requireAdmin: (req, res, next) => {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  },
+  requirePartnerAccount: (req, res, next) => next(),
+  requireApprovedPartner: (req, res, next) => {
+    const partnerId = req.body?.partnerId;
+    if (!partnerId) {
+      return res.status(400).json({ message: "Missing partnerId" });
+    }
+    if (!req.isAdmin && req.authUid !== partnerId) {
+      return res.status(403).json({ message: "Cannot act on behalf of another partner" });
+    }
+    req.partnerId = partnerId;
+    next();
+  },
+}));
+
 const mockDocState = new Map();
 const mockCollectionDocs = new Map();
 
@@ -100,6 +130,20 @@ const buildApp = () => {
   return app;
 };
 
+const partnerRequest = (app) => ({
+  post: (url) =>
+    request(app).post(url).set("x-test-uid", "p1").set("x-test-email", "a@test.com"),
+});
+
+const adminRequest = (app) => ({
+  post: (url) =>
+    request(app)
+      .post(url)
+      .set("x-test-uid", "admin-1")
+      .set("x-test-admin", "true")
+      .set("x-test-email", "admin@porchpobox.com"),
+});
+
 beforeEach(() => {
   mockDocState.clear();
   mockCollectionDocs.clear();
@@ -117,7 +161,7 @@ afterEach(() => {
 
 describe("POST /package-check-in", () => {
   it("returns 400 if required fields are missing", async () => {
-    const res = await request(buildApp()).post("/api/notifications/package-check-in").send({});
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({});
     expect(res.status).toBe(400);
   });
 
@@ -125,7 +169,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "inactive", packagesCheckedIn: 0, notificationsEnabled: true });
     mockDocState.set("partners/p1", { packageCheckInCount: 0 });
 
-    const res = await request(buildApp()).post("/api/notifications/package-check-in").send({
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -157,7 +201,7 @@ describe("POST /package-check-in", () => {
       zipCode: "78701"
     });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Fallback Name",
       partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
@@ -191,7 +235,7 @@ describe("POST /package-check-in", () => {
     });
     mockDocState.set("partners/p1", { packageCheckInCount: 0, businessName: "This Partner" });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "This Partner",
       partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
@@ -210,7 +254,7 @@ describe("POST /package-check-in", () => {
     });
     mockDocState.set("partners/p1", { packageCheckInCount: 0, businessName: "Real Partner", streetAddress: "1 Rd", city: "X", state: "YY", zipCode: "00000" });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Real Partner",
       partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
@@ -236,7 +280,7 @@ describe("POST /package-check-in", () => {
       zip_code: "75201"
     });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Snake Case Shop",
       partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
@@ -270,7 +314,7 @@ describe("POST /package-check-in", () => {
     });
     mockDocState.set("partners/p2", { packageCheckInCount: 0, businessName: "Other Location" });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Other Location",
       partnerId: "p2",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
@@ -283,7 +327,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "trial", packagesCheckedIn: 1, notificationsEnabled: true });
     mockDocState.set("partners/p1", { packageCheckInCount: 1 });
 
-    const res = await request(buildApp()).post("/api/notifications/package-check-in").send({
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -296,7 +340,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "active", packagesCheckedIn: 5, notificationsEnabled: true });
     mockDocState.set("partners/p1", { packageCheckInCount: 5 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 2 }]
     });
@@ -308,7 +352,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "active", packagesCheckedIn: 1, notificationsEnabled: false });
     mockDocState.set("partners/p1", { packageCheckInCount: 1 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -322,7 +366,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("partners/p1/packageCounts/u1", { count: 0, totalReceived: 0, totalPickedUp: 0 }); // no lastCheckInEmailAt
     mockDocState.set("partners/p1", { packageCheckInCount: 0 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -336,7 +380,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("partners/p1/packageCounts/u1", { count: 1, totalReceived: 1, totalPickedUp: 0, lastCheckInEmailAt: recentTimestamp });
     mockDocState.set("partners/p1", { packageCheckInCount: 1 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -350,7 +394,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("partners/p1/packageCounts/u1", { count: 1, totalReceived: 1, totalPickedUp: 0, lastCheckInEmailAt: oldTimestamp });
     mockDocState.set("partners/p1", { packageCheckInCount: 1 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
     });
@@ -363,7 +407,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("partners/p1/packageCounts/u1", { count: 2, totalReceived: 2, totalPickedUp: 0 });
     mockDocState.set("partners/p1", { packageCheckInCount: 2 });
 
-    await request(buildApp()).post("/api/notifications/package-check-in").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 3 }]
     });
@@ -377,7 +421,7 @@ describe("POST /package-check-in", () => {
     mockDocState.set("users/u2", { email: "b@test.com", status: "active", packagesCheckedIn: 1, notificationsEnabled: true });
     mockDocState.set("partners/p1", { packageCheckInCount: 0 });
 
-    const res = await request(buildApp()).post("/api/notifications/package-check-in").send({
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
       vendorName: "Shop A", partnerId: "p1",
       recipients: [
         { id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 },
@@ -395,15 +439,16 @@ describe("POST /package-check-in", () => {
 
 describe("POST /package-delivery", () => {
   it("returns 400 if recipients are missing", async () => {
-    const res = await request(buildApp()).post("/api/notifications/package-delivery").send({});
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({});
     expect(res.status).toBe(400);
   });
 
   it("increments packagesDelivered and sets inactive on first delivery for non-active user", async () => {
     mockDocState.set("users/u1", { status: "trial", packagesDelivered: 0 });
 
-    const res = await request(buildApp()).post("/api/notifications/package-delivery").send({
-      recipients: [{ id: "u1", packageCount: 1 }]
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({
+      partnerId: "p1",
+      recipients: [{ id: "u1", packageCount: 1 }],
     });
 
     expect(res.status).toBe(200);
@@ -415,7 +460,7 @@ describe("POST /package-delivery", () => {
     mockDocState.set("users/u1", { status: "active", packagesDelivered: 2 });
     mockDocState.set("partners/p1/packageCounts/u1", { count: 3, totalReceived: 3, totalPickedUp: 0 });
 
-    await request(buildApp()).post("/api/notifications/package-delivery").send({
+    await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({
       partnerId: "p1", partnerName: "Shop A",
       recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 2 }]
     });
@@ -427,8 +472,9 @@ describe("POST /package-delivery", () => {
   it("does not change status for active users on delivery", async () => {
     mockDocState.set("users/u1", { status: "active", packagesDelivered: 3 });
 
-    await request(buildApp()).post("/api/notifications/package-delivery").send({
-      recipients: [{ id: "u1", packageCount: 1 }]
+    await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({
+      partnerId: "p1",
+      recipients: [{ id: "u1", packageCount: 1 }],
     });
 
     expect(mockDocState.get("users/u1").status).toBe("active");
@@ -437,8 +483,9 @@ describe("POST /package-delivery", () => {
   it("sends first-delivery welcome email for non-active users", async () => {
     mockDocState.set("users/u1", { email: "a@test.com", name: "Alice", status: "trial", packagesDelivered: 0 });
 
-    await request(buildApp()).post("/api/notifications/package-delivery").send({
-      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }],
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -449,8 +496,9 @@ describe("POST /package-delivery", () => {
   it("does not send welcome email on subsequent deliveries", async () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "active", packagesDelivered: 2 });
 
-    await request(buildApp()).post("/api/notifications/package-delivery").send({
-      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }]
+    await partnerRequest(buildApp()).post("/api/notifications/package-delivery").send({
+      partnerId: "p1",
+      recipients: [{ id: "u1", name: "Alice", email: "a@test.com", packageCount: 1 }],
     });
 
     expect(global.fetch).not.toHaveBeenCalled();
@@ -461,12 +509,12 @@ describe("POST /package-delivery", () => {
 
 describe("POST /partner-approved", () => {
   it("returns 400 if businessName or email missing", async () => {
-    const res = await request(buildApp()).post("/api/notifications/partner-approved").send({ businessName: "Shop" });
+    const res = await adminRequest(buildApp()).post("/api/notifications/partner-approved").send({ businessName: "Shop" });
     expect(res.status).toBe(400);
   });
 
   it("sends approval email to partner", async () => {
-    const res = await request(buildApp()).post("/api/notifications/partner-approved").send({
+    const res = await adminRequest(buildApp()).post("/api/notifications/partner-approved").send({
       businessName: "Shop A", email: "shop@test.com"
     });
 
@@ -474,7 +522,7 @@ describe("POST /partner-approved", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const body = JSON.parse(global.fetch.mock.calls[0][1].body);
     expect(body.to).toBe("shop@test.com");
-    expect(body.html).toContain("Approved");
+    expect(body.html).toContain("approved");
   });
 
   it("sends referral reward email and grants 1 year when referredBy matches a user", async () => {
@@ -485,7 +533,7 @@ describe("POST /partner-approved", () => {
       status: "inactive"
     });
 
-    const res = await request(buildApp()).post("/api/notifications/partner-approved").send({
+    const res = await adminRequest(buildApp()).post("/api/notifications/partner-approved").send({
       businessName: "Shop A", email: "shop@test.com", referredBy: "JA120525"
     });
 
@@ -502,7 +550,7 @@ describe("POST /partner-approved", () => {
   });
 
   it("does not error if referredBy code does not match any user", async () => {
-    const res = await request(buildApp()).post("/api/notifications/partner-approved").send({
+    const res = await adminRequest(buildApp()).post("/api/notifications/partner-approved").send({
       businessName: "Shop A", email: "shop@test.com", referredBy: "XX999999"
     });
 
@@ -515,15 +563,15 @@ describe("POST /partner-approved", () => {
 
 describe("POST /vendor-registration", () => {
   it("returns 400 if any required field is missing", async () => {
-    const res = await request(buildApp()).post("/api/notifications/vendor-registration").send({
+    const res = await partnerRequest(buildApp()).post("/api/notifications/vendor-registration").send({
       businessName: "Shop A"
     });
     expect(res.status).toBe(400);
   });
 
   it("sends two emails: admin alert and partner confirmation", async () => {
-    const res = await request(buildApp()).post("/api/notifications/vendor-registration").send({
-      businessName: "Shop A", email: "shop@test.com", phoneNumber: "5551234567",
+    const res = await partnerRequest(buildApp()).post("/api/notifications/vendor-registration").send({
+      businessName: "Shop A", email: "a@test.com", phoneNumber: "5551234567",
       streetAddress: "123 Main St", city: "Springfield", state: "CA", zipCode: "90210"
     });
 
@@ -532,7 +580,7 @@ describe("POST /vendor-registration", () => {
     const adminEmail = JSON.parse(global.fetch.mock.calls[0][1].body);
     const partnerEmail = JSON.parse(global.fetch.mock.calls[1][1].body);
     expect(adminEmail.to).toBe("contact@porchpobox.com");
-    expect(partnerEmail.to).toBe("shop@test.com");
+    expect(partnerEmail.to).toBe("a@test.com");
   });
 });
 
@@ -562,7 +610,7 @@ describe("email env var validation", () => {
   it("returns 500 if RESEND_API_KEY is missing on partner approval", async () => {
     delete process.env.RESEND_API_KEY;
 
-    const res = await request(buildApp()).post("/api/notifications/partner-approved").send({
+    const res = await adminRequest(buildApp()).post("/api/notifications/partner-approved").send({
       businessName: "Shop A", email: "shop@test.com"
     });
 
