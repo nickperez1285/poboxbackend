@@ -1,6 +1,6 @@
 const express = require("express");
 const { admin, getFirestore } = require("../config/firebaseAdmin");
-const twilio = require("twilio");
+const { sendSMS, isSignalWireConfigured } = require("../lib/signalwireSms");
 const {
   requireAuth,
   loadAuthContext,
@@ -43,36 +43,6 @@ function partnerAddressFromPartnerDoc(partnerData) {
 
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
-
-// Initialize Twilio Client
-const twilioClient =
-  process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-    : null;
-
-/**
- * Sends an SMS alert to a user via Twilio.
- */
-const sendSMS = async (to, body) => {
-  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
-    console.warn("[Twilio] Credentials missing. SMS skipped.");
-    return;
-  }
-  if (!to) return;
-
-  try {
-    await twilioClient.messages.create({
-      body,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: to.startsWith("+") ? to : `+1${to.replace(/\D/g, "")}`, // Ensures E.164 format for US numbers
-    });
-    console.log(`[Twilio] SMS sent to ${to}`);
-  } catch (err) {
-    console.error(
-      `[Twilio] Error: ${err.code} - ${err.message}. Ensure the "to" number is verified if using a trial account.`,
-    );
-  }
-};
 
 const sendEmail = async ({ to, replyTo, subject, html }) => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -151,15 +121,13 @@ router.post("/test-sms", requireAuth, loadAuthContext, requireAdmin, async (req,
   if (!phoneNumber)
     return res.status(400).json({ message: "Missing phoneNumber" });
 
-  console.log(`[Twilio] Manual test trigger for ${phoneNumber}`);
+  console.log(`[SignalWire] Manual test trigger for ${phoneNumber}`);
   try {
-    // We call sendSMS directly to verify credentials and connectivity
-    if (!twilioClient) {
-      return res
-        .status(500)
-        .json({
-          message: "Twilio client not initialized. Check your .env variables.",
-        });
+    if (!isSignalWireConfigured()) {
+      return res.status(500).json({
+        message:
+          "SignalWire is not configured. Set SIGNALWIRE_SPACE_URL, SIGNALWIRE_PROJECT_ID, SIGNALWIRE_API_TOKEN, and SIGNALWIRE_PHONE_NUMBER.",
+      });
     }
 
     await sendSMS(

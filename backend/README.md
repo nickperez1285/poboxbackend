@@ -7,7 +7,7 @@ This repo contains the production backend/API for Porch P.O. Box.
 - Email delivery for vendor registration
 - Payment and other server-side business logic
 - API routes consumed by the frontend
-- Secret-backed integrations such as Resend and Stripe
+- Secret-backed integrations such as Resend, SignalWire (SMS), and Stripe
 
 ## Production Mapping
 
@@ -34,6 +34,15 @@ This route is responsible for:
   - recommended current sender: `no-reply@send.porchpobox.com`
   - switch to `no-reply@porchpobox.com` only after the root domain is verified for sending
 - `FRONTEND_URL`
+
+SMS (package check-in alerts) via SignalWire:
+
+- `SIGNALWIRE_SPACE_URL` — your space hostname, e.g. `yourname.signalwire.com` (no `https://`)
+- `SIGNALWIRE_PROJECT_ID`
+- `SIGNALWIRE_API_TOKEN`
+- `SIGNALWIRE_PHONE_NUMBER` — E.164 sender, e.g. `+15551234567`
+
+Remove legacy `TWILIO_*` variables from Vercel after deploy.
 
 If Stripe is re-enabled later, also restore any Stripe-specific env vars required by the payment routes.
 
