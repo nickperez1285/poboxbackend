@@ -15,7 +15,8 @@ const {
   requireAdmin,
 } = require("./middleware/firebaseAuth");
 const renewalRemindersRoute = require("./routes/cron/renewalReminders");
-const cors = require('cors');
+const cors = require("cors");
+const { corsOptions } = require("./middleware/corsConfig");
 // removed for vercel 
 // const dotenv = require('dotenv');
 // dotenv.config();
@@ -37,26 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:3000",
-//       process.env.BASE_URL
-//     ],
-//     credentials: true,
-//   })
-// );
-
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // allow webhooks
-      callback(null, true);
-    },
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/debug", requireAuth, loadAuthContext, requireAdmin, debugRoutes);
 app.use("/api/cron", renewalRemindersRoute);

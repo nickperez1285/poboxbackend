@@ -44,6 +44,8 @@ SMS (package check-in alerts) via SignalWire:
 
 Remove legacy `TWILIO_*` variables from Vercel after deploy.
 
+CORS allows `porchpobox.com`, `www.porchpobox.com`, `*.vercel.app`, localhost, plus `FRONTEND_URL` / `BASE_URL`. Optional comma-separated `CORS_EXTRA_ORIGINS` for additional preview hosts.
+
 If Stripe is re-enabled later, also restore any Stripe-specific env vars required by the payment routes.
 
 ## Frontend Contract
