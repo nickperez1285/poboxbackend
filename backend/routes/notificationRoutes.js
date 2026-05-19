@@ -94,6 +94,96 @@ const sendEmail = async ({ to, replyTo, subject, html }) => {
 const htmlEmail = (body) =>
   `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;width:100%"><tr><td style="background:#121212;padding:28px 32px;text-align:center"><img src="https://porchpobox.com/porchlogo.png" alt="Porch P.O. Box" style="height:56px;display:block;margin:0 auto" /></td></tr><tr><td style="padding:36px 32px;color:#222;font-size:15px;line-height:1.7">${body}</td></tr><tr><td style="background:#f8f8f8;border-top:1px solid #eee;padding:20px 32px;text-align:center"><img src="https://porchpobox.com/logo.png" alt="Porch P.O. Box" style="height:48px;display:block;margin:0 auto 12px" /><p style="margin:0 0 4px;font-size:13px;color:#888">Porch P.O. Box &mdash; Convenient Package Receiving</p><p style="margin:0;font-size:13px"><a href="mailto:contact@porchpobox.com" style="color:#d4af37;text-decoration:none">contact@porchpobox.com</a></p></td></tr></table></td></tr></table></body></html>`;
 
+/** Helper to geocode a string address into {lat, lng} using Google Maps API. */
+const geocodeAddress = async (address) => {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    console.warn("[Geocoding] Missing GOOGLE_MAPS_API_KEY. Skipping.");
+    return null;
+  }
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.status === "OK" && data.results && data.results.length > 0) {
+      return data.results[0].geometry.location;
+    }
+    console.error(
+      `[Geocoding] Failed for "${address}":`,
+      data.status,
+      data.error_message || "",
+    );
+  } catch (err) {
+    console.error(`[Geocoding] Network error for "${address}":`, err.message);
+  }
+  return null;
+};
+
+router.get(
+  "/search-customers",
+  requireAuth,
+  loadAuthContext,
+  requireApprovedPartner,
+  async (req, res) => {
+    const { q } = req.query;
+    const partnerId = req.auth.uid;
+    if (!q || String(q).trim().length < 2) return res.json([]);
+
+    try {
+      const searchTerm = String(q).trim().toLowerCase();
+      let userDocs = [];
+
+      const emailMatch = await db
+        .collection("users")
+        .where("email", "==", searchTerm)
+        .limit(1)
+        .get();
+      if (!emailMatch.empty) {
+        userDocs = emailMatch.docs;
+      } else {
+        const namePrefix = String(q).trim();
+        const nameMatch = await db
+          .collection("users")
+          .where("name", ">=", namePrefix)
+          .where("name", "<=", namePrefix + "\uf8ff")
+          .limit(15)
+          .get();
+        userDocs = nameMatch.docs;
+      }
+
+      const results = await Promise.all(
+        userDocs.map(async (uDoc) => {
+          const u = uDoc.data();
+          const countSnap = await db
+            .doc(`partners/${partnerId}/packageCounts/${uDoc.id}`)
+            .get();
+          const c = countSnap.exists ? countSnap.data() : {};
+
+          return {
+            id: uDoc.id,
+            name: u.name || "",
+            email: u.email || "",
+            status: u.status || "inactive",
+            phoneNumber: u.phoneNumber || "",
+            streetAddress: u.streetAddress || "",
+            city: u.city || "",
+            state: u.state || "",
+            zipCode: u.zipCode || "",
+            packageCount: Number(c.count) || 0,
+            totalReceived: Number(c.totalReceived) || Number(c.count) || 0,
+            totalPickedUp: Number(c.totalPickedUp) || 0,
+          };
+        }),
+      );
+
+      return res.json(results);
+    } catch (error) {
+      console.error("[search-customers] Error:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  },
+);
+
 router.post(
   "/test-email",
   requireAuth,
@@ -370,6 +460,29 @@ router.post(
     }
 
     try {
+      // Find and update partner document with geocoded coordinates
+      const partnerSnap = await db
+        .collection("partners")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+
+      if (!partnerSnap.empty) {
+        const partnerDoc = partnerSnap.docs[0];
+        const fullAddress = `${streetAddress || ""}, ${city || ""}, ${state || ""} ${zipCode || ""}`;
+        const coords = await geocodeAddress(fullAddress);
+
+        const updateData = {
+          approved: true,
+          status: "active",
+        };
+        if (coords) {
+          updateData.lat = coords.lat;
+          updateData.lng = coords.lng;
+        }
+        await partnerDoc.ref.update(updateData);
+      }
+
       // Send approval email to partner
       await sendEmail({
         to: email,
