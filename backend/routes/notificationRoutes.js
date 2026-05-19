@@ -191,6 +191,17 @@ router.post(
   requireAdmin,
   async (req, res) => {
     const { email } = req.body || {};
+
+    // Production lockdown: disable test routes
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ALLOW_DEBUG_IN_PROD !== "true"
+    ) {
+      return res
+        .status(404)
+        .json({ message: "Endpoint disabled in production" });
+    }
+
     if (!email) return res.status(400).json({ message: "Missing email" });
     try {
       await sendEmail({
@@ -219,6 +230,17 @@ router.post(
   requireAdmin,
   async (req, res) => {
     const { phoneNumber, message } = req.body || {};
+
+    // Production lockdown: disable test routes
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ALLOW_DEBUG_IN_PROD !== "true"
+    ) {
+      return res
+        .status(404)
+        .json({ message: "Endpoint disabled in production" });
+    }
+
     if (!phoneNumber)
       return res.status(400).json({ message: "Missing phoneNumber" });
 
@@ -231,10 +253,11 @@ router.post(
         });
       }
 
-      await sendSMS(
-        phoneNumber,
-        message || "Test message from Porch P.O. Box! 📦",
-      );
+      // SMS notifications are paused for now.
+      // await sendSMS(
+      //   phoneNumber,
+      //   message || "Test message from Porch P.O. Box! 📦",
+      // );
       return res.status(200).json({
         success: true,
         message: `Test request processed. Check your server logs for results.`,
@@ -703,10 +726,11 @@ router.post(
           userData.notificationsEnabled !== false &&
           (isFirstCheckIn || now - lastEmailAt > TEN_MINUTES)
         ) {
-          await sendSMS(
-            userPhone,
-            `📦 Porch P.O. Box: A package has arrived for you at ${vendorName}! Pick it up during store hours.`,
-          );
+          // SMS notifications are paused for now.
+          // await sendSMS(
+          //   userPhone,
+          //   `📦 Porch P.O. Box: A package has arrived for you at ${vendorName}! Pick it up during store hours.`,
+          // );
         }
 
         await Promise.all([
