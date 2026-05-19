@@ -2,6 +2,7 @@
   "name": "poboxbackend",
   "private": true,
   "scripts": {
+    "test": "jest",
     "postinstall": "npm install --prefix backend"
   },
   "dependencies": {
