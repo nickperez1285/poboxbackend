@@ -65,7 +65,9 @@ const corsOriginCallback = (origin, callback) => {
   }
 
   console.warn(`[CORS] Blocked origin: ${origin}`);
-  return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+  // Using null, false instead of an Error prevents the server from
+  // entering an error state during preflight checks.
+  return callback(null, false);
 };
 
 const corsOptions = {
