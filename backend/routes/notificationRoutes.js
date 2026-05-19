@@ -141,11 +141,13 @@ router.get(
       if (!emailMatch.empty) {
         userDocs = emailMatch.docs;
       } else {
-        const namePrefix = String(q).trim();
+        // In search-customers route
+        const nameLower = String(q).trim().toLowerCase();
+
         const nameMatch = await db
           .collection("users")
-          .where("name", ">=", namePrefix)
-          .where("name", "<=", namePrefix + "\uf8ff")
+          .where("nameLower", ">=", nameLower)
+          .where("nameLower", "<=", nameLower + "\uf8ff")
           .limit(15)
           .get();
         userDocs = nameMatch.docs;
@@ -260,7 +262,7 @@ router.post(
       // );
       return res.status(200).json({
         success: true,
-        message: `Test request processed. Check your server logs for results.`,
+        message: `Test request processed. Check your server logs for   results.`,
       });
     } catch (error) {
       console.error("Test SMS route crash:", error);
