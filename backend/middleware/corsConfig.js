@@ -5,7 +5,6 @@ const DEFAULT_ALLOWED_HOSTS = new Set([
   "127.0.0.1",
 ]);
 
-
 const parseExtraOrigins = () => {
   const entries = [
     process.env.FRONTEND_URL,
@@ -32,8 +31,6 @@ const hostnameFromOrigin = (origin) => {
   }
 };
 
-};
-
 const isAllowedOrigin = (origin) => {
   console.log(`[CORS] Checking origin: ${origin}`);
   if (!origin) {
@@ -43,7 +40,9 @@ const isAllowedOrigin = (origin) => {
 
   const host = hostnameFromOrigin(origin);
   if (!host) {
-    console.log(`[CORS] Could not parse host from origin: ${origin}, blocking.`);
+    console.log(
+      `[CORS] Could not parse host from origin: ${origin}, blocking.`,
+    );
     return false;
   }
 
@@ -60,7 +59,9 @@ const isAllowedOrigin = (origin) => {
   for (const allowed of parseExtraOrigins()) {
     const allowedHost = hostnameFromOrigin(allowed) || allowed.toLowerCase();
     if (allowedHost === host) {
-      console.log(`[CORS] Host ${host} matches extra allowed origin ${allowed}, allowing.`);
+      console.log(
+        `[CORS] Host ${host} matches extra allowed origin ${allowed}, allowing.`,
+      );
       return true;
     }
   }
@@ -74,7 +75,6 @@ const corsOriginCallback = (origin, callback) => {
   if (!origin || isAllowedOrigin(origin)) {
     return callback(null, true);
   }
-
 
   console.warn(`[CORS] Blocked origin: ${origin}`);
   // Using null, false instead of an Error prevents the server from
@@ -91,5 +91,3 @@ module.exports = {
   corsOptions,
   isAllowedOrigin,
 };
-
-
