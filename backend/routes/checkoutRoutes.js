@@ -8,21 +8,28 @@ if (!checkoutController) {
     "checkoutController module is undefined. Check if ../controllers/checkoutController.js exists and exports correctly.",
   );
 }
-if (typeof checkoutController.createCheckoutSession !== "function") {
-  throw new Error(
-    "checkoutController.createCheckoutSession is not a function. Check ../controllers/checkoutController.js",
-  );
-}
-if (typeof checkoutController.finalizeCheckoutSession !== "function") {
-  throw new Error(
-    "checkoutController.finalizeCheckoutSession is not a function. Check ../controllers/checkoutController.js",
-  );
-}
-if (typeof checkoutController.getCheckoutSession !== "function") {
-  throw new Error(
-    "checkoutController.getCheckoutSession is not a function. Check ../controllers/checkoutController.js",
-  );
-}
+
+const ensureFunction = (fn, name) => {
+  if (typeof fn === "function") return fn;
+  return (req, res) => {
+    console.error(`Controller method ${name} is missing!`);
+    res.status(501).json({ message: "Feature not yet implemented." });
+  };
+};
+
+const createSession = ensureFunction(
+  checkoutController.createCheckoutSession,
+  "createCheckoutSession",
+);
+const finalizeSession = ensureFunction(
+  checkoutController.finalizeCheckoutSession,
+  "finalizeCheckoutSession",
+);
+const getSession = ensureFunction(
+  checkoutController.getCheckoutSession,
+  "getCheckoutSession",
+);
+
 const {
   requireAuth,
   requireMatchingUserId,
@@ -33,20 +40,20 @@ router.post(
   "/create-checkout-session",
   requireAuth,
   requireMatchingUserId,
-  checkoutController.createCheckoutSession,
+  createSession,
 );
 router.post(
   "/finalize-checkout-session",
   requireAuth,
   requireMatchingUserId,
   requireOwnedCheckoutSession,
-  checkoutController.finalizeCheckoutSession,
+  finalizeSession,
 );
 router.get(
   "/checkout-session/:sessionId",
   requireAuth,
   requireOwnedCheckoutSession,
-  checkoutController.getCheckoutSession,
+  getSession,
 );
 
 module.exports = router;
