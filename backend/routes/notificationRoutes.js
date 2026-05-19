@@ -127,31 +127,33 @@ router.get(
   async (req, res) => {
     const { q } = req.query;
     const partnerId = req.auth.uid;
-    if (!q || String(q).trim().length < 2) return res.json([]);
+    if (!q || String(q).trim().length < 1) return res.json([]);
 
     try {
       const searchTerm = String(q).trim().toLowerCase();
-      let userDocs = [];
 
-      const emailMatch = await db
-        .collection("users")
-        .where("email", "==", searchTerm)
-        .limit(1)
-        .get();
-      if (!emailMatch.empty) {
-        userDocs = emailMatch.docs;
-      } else {
-        // In search-customers route
-        const nameLower = String(q).trim().toLowerCase();
-
-        const nameMatch = await db
+      // Perform parallel prefix searches for both email and nameLower
+      const [emailMatch, nameMatch] = await Promise.all([
+        db
           .collection("users")
-          .where("nameLower", ">=", nameLower)
-          .where("nameLower", "<=", nameLower + "\uf8ff")
-          .limit(15)
-          .get();
-        userDocs = nameMatch.docs;
-      }
+          .where("email", ">=", searchTerm)
+          .where("email", "<=", searchTerm + "\uf8ff")
+          .limit(10)
+          .get(),
+        db
+          .collection("users")
+          .where("nameLower", ">=", searchTerm)
+          .where("nameLower", "<=", searchTerm + "\uf8ff")
+          .limit(10)
+          .get(),
+      ]);
+
+      // Use a Map to deduplicate results if a user matches both queries
+      const userMap = new Map();
+      emailMatch.docs.forEach((doc) => userMap.set(doc.id, doc));
+      nameMatch.docs.forEach((doc) => userMap.set(doc.id, doc));
+
+      const userDocs = Array.from(userMap.values()).slice(0, 15);
 
       const results = await Promise.all(
         userDocs.map(async (uDoc) => {
