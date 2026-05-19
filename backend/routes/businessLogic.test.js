@@ -1,4 +1,4 @@
-const { sessionOwnedByUser } = require("../../middleware/firebaseAuth");
+const { sessionOwnedByUser } = require("../middleware/firebaseAuth");
 
 describe("Business Logic & Anti-Abuse", () => {
   describe("Checkout Abuse Prevention", () => {

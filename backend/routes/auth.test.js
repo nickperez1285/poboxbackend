@@ -1,4 +1,4 @@
-const { requireAuth, requireAdmin } = require("../../middleware/firebaseAuth");
+const { requireAuth, requireAdmin } = require("../middleware/firebaseAuth");
 
 describe("Auth Middleware", () => {
   let mockReq;
