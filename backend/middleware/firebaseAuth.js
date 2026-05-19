@@ -87,6 +87,43 @@ const sessionOwnedByUser = (session, uid, email) => {
   return sessionEmail?.toLowerCase() === email?.toLowerCase();
 };
 
+/**
+ * Ensures the userId in the request body matches the authenticated user.
+ * Prevents users from creating/modifying checkout sessions for other users.
+ */
+const requireMatchingUserId = (req, res, next) => {
+  const bodyUserId = req.body?.userId || req.body?.user_id;
+  if (bodyUserId && bodyUserId !== req.auth.uid) {
+    return res.status(403).json({ message: "User ID mismatch" });
+  }
+  next();
+};
+
+/**
+ * Ensures the authenticated user owns the Stripe checkout session being accessed.
+ * Reads sessionId from params or body, then verifies ownership via Stripe.
+ */
+const requireOwnedCheckoutSession = async (req, res, next) => {
+  const stripe = require("../config/stripeConfig");
+  const sessionId = req.params?.sessionId || req.body?.sessionId;
+  if (!sessionId) {
+    return res.status(400).json({ message: "Missing sessionId" });
+  }
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (!sessionOwnedByUser(session, req.auth.uid, req.auth.email)) {
+      return res.status(403).json({ message: "Unauthorized checkout session" });
+    }
+    req.checkoutSession = session;
+    next();
+  } catch (err) {
+    console.error("[requireOwnedCheckoutSession] Error:", err.message);
+    return res
+      .status(400)
+      .json({ message: "Invalid or expired checkout session" });
+  }
+};
+
 module.exports = {
   requireAuth,
   loadAuthContext,
@@ -94,4 +131,6 @@ module.exports = {
   requirePartnerAccount,
   requireApprovedPartner,
   sessionOwnedByUser,
+  requireMatchingUserId,
+  requireOwnedCheckoutSession,
 };
