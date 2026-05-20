@@ -33,7 +33,16 @@ describe("Firestore Security Rules", () => {
       return db.collection("users").doc("alice").set({ name: "Alice" });
     });
 
-    await assertSucceeds(aliceProfile.get());
+    await assertSucceeds(aliceProfile.get()); // Should work because uid matches
+  });
+
+  test("isAdmin() doesn't crash when user doc doesn't exist (Registration check)", async () => {
+    const newUserDb = testEnv.authenticatedContext("new-user").firestore();
+    const newUserProfile = newUserDb.collection("users").doc("new-user");
+
+    // This verifies that the 'exists()' check in the isAdmin function prevents a crash
+    // during the 'get' check performed by Register.js on a brand new account.
+    await assertSucceeds(newUserProfile.get());
   });
 
   test("Users should NOT be able to read others' profiles", async () => {
@@ -41,6 +50,26 @@ describe("Firestore Security Rules", () => {
     const bobProfile = aliceDb.collection("users").doc("bob");
 
     await assertFails(bobProfile.get());
+  });
+
+  test("Partners can GET a user profile if they are the preferred location", async () => {
+    await testEnv.withSecurityRulesDisabled(async (db) => {
+      await db
+        .collection("users")
+        .doc("alice")
+        .set({
+          name: "Alice",
+          prefLocation: { id: "partner-1" },
+        });
+    });
+
+    const p1Db = testEnv.authenticatedContext("partner-1").firestore();
+    await assertSucceeds(p1Db.collection("users").doc("alice").get());
+  });
+
+  test("Partners CANNOT list the entire user collection", async () => {
+    const p1Db = testEnv.authenticatedContext("partner-1").firestore();
+    await assertFails(p1Db.collection("users").get());
   });
 
   test("Unapproved partners should not be able to check in packages", async () => {

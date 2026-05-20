@@ -746,6 +746,7 @@ router.post(
               totalPickedUp: currentTotalPickedUp,
               name: recipient.name || "Unnamed user",
               email: recipient.email || "",
+              status: userUpdates.status || userData.status || "inactive",
               ...(shouldSendEmail
                 ? {
                     lastCheckInEmailAt:
@@ -777,14 +778,17 @@ router.post(
       });
 
       await Promise.all(partnerPackageUpdates);
-      await partnerRef.set(
-        {
-          packageCheckInCount: admin.firestore.FieldValue.increment(
-            recipients.reduce((sum, r) => sum + r.packageCount, 0),
-          ),
-        },
-        { merge: true },
+      const totalNewPackages = recipients.reduce(
+        (sum, r) => sum + r.packageCount,
+        0,
       );
+      await partnerRef.update({
+        packageCheckInCount:
+          admin.firestore.FieldValue.increment(totalNewPackages),
+        activePackagesCount:
+          admin.firestore.FieldValue.increment(totalNewPackages),
+        lastActivityAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       return res.status(200).json({ success: true });
     } catch (error) {
@@ -909,6 +913,7 @@ router.post(
                 count: nextWaiting,
                 totalPickedUp: currentTotalPickedUp + recipient.packageCount,
                 lastCheckInEmailAt: null,
+                status: updates.status || userData.status || "inactive",
                 ...(nextWaiting <= 0 ? { holdForResubscribe: false } : {}),
               },
               { merge: true },
@@ -918,6 +923,19 @@ router.post(
 
         await Promise.all(writes);
       }
+
+      // Update aggregate partner stats for active packages and pickups
+      const totalDelivered = recipients.reduce(
+        (sum, r) => sum + r.packageCount,
+        0,
+      );
+      await db.doc(`partners/${partnerId}`).update({
+        activePackagesCount:
+          admin.firestore.FieldValue.increment(-totalDelivered),
+        packagePickupCount:
+          admin.firestore.FieldValue.increment(totalDelivered),
+        lastActivityAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       return res.status(200).json({ success: true });
     } catch (error) {
