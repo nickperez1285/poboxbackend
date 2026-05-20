@@ -16,6 +16,7 @@ const requireAuth = async (req, res, next) => {
   try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     req.auth = decodedToken;
+    req.authUid = decodedToken.uid;
     next();
   } catch (error) {
     console.error("[Auth] Token verification failed:", error.message);
