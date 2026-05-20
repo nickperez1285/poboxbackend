@@ -1,10 +1,10 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 
 exports.handleWebhook = (req, res) => {
     const sig = req.headers['stripe-signature'];
 
     try {
-        const event = stripe.webhooks.constructEvent(
+        const event = getStripe().webhooks.constructEvent(
             req.body,
             sig,
             process.env.STRIPE_WEBHOOK_SECRET_KEY

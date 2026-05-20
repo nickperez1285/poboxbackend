@@ -1,10 +1,10 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 
 // Fetches a single price based on the product ID
 exports.getPrice = async (req, res) => {
     try {
         const { productId } = req.params;
-        const price = await stripe.prices.retrieve(productId);
+        const price = await getStripe().prices.retrieve(productId);
         res.json({
             success: true,
             price: {
@@ -24,7 +24,7 @@ exports.getPrice = async (req, res) => {
 // Fetches all active prices
 exports.getAllPrices = async (req, res) => {
     try {
-        const prices = await stripe.prices.list({
+        const prices = await getStripe().prices.list({
             active: true,
             expand: ['data.product']
         });

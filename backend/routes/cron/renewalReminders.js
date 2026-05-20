@@ -2,7 +2,7 @@ const express = require("express");
 const { admin, getFirestore } = require("../../config/firebaseAdmin");
 
 const router = express.Router();
-const db = getFirestore();
+const getDb = () => getFirestore();
 
 const resendApiUrl = "https://api.resend.com/emails";
 const adminInbox = "contact@porchpobox.com";
@@ -57,6 +57,7 @@ router.get("/renewal-reminders", async (req, res) => {
   }
 
   try {
+    const db = getDb();
     const now = new Date();
     const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);

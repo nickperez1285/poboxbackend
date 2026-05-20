@@ -1,6 +1,6 @@
 const { admin, getFirestore } = require("../config/firebaseAdmin");
 
-const db = getFirestore();
+const getDb = () => getFirestore();
 
 /**
  * Verifies Firebase ID Token from Authorization header.
@@ -46,7 +46,7 @@ const requireAdmin = (req, res, next) => {
  * Blocks request if user is not registered as a partner.
  */
 const requirePartnerAccount = async (req, res, next) => {
-  const partnerSnap = await db.collection("partners").doc(req.auth.uid).get();
+  const partnerSnap = await getDb().collection("partners").doc(req.auth.uid).get();
   if (!partnerSnap.exists) {
     return res.status(403).json({ message: "Partner profile not found" });
   }
@@ -59,7 +59,7 @@ const requirePartnerAccount = async (req, res, next) => {
  */
 const requireApprovedPartner = async (req, res, next) => {
   const uid = req.auth.uid;
-  const partnerSnap = await db.collection("partners").doc(uid).get();
+  const partnerSnap = await getDb().collection("partners").doc(uid).get();
   const partnerData = partnerSnap.data();
 
   if (!partnerSnap.exists || !partnerData.approved) {
@@ -118,13 +118,13 @@ const requireMatchingUserId = (req, res, next) => {
  * Reads sessionId from params or body, then verifies ownership via Stripe.
  */
 const requireOwnedCheckoutSession = async (req, res, next) => {
-  const stripe = require("../config/stripeConfig");
+  const { getStripe } = require("../config/stripeConfig");
   const sessionId = req.params?.sessionId || req.body?.sessionId;
   if (!sessionId) {
     return res.status(400).json({ message: "Missing sessionId" });
   }
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
     if (!sessionOwnedByUser(session, req.auth.uid, req.auth.email)) {
       return res.status(403).json({ message: "Unauthorized checkout session" });
     }

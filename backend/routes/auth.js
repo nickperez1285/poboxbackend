@@ -1,10 +1,10 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const users = require("../models/User");
 const jwt = require("jsonwebtoken");
-const { admin } = require("../config/firebaseAdmin");
+const { admin, getFirestore } = require("../config/firebaseAdmin");
 
 const router = express.Router();
+const getUsersCollection = () => getFirestore().collection("users");
 
 /**
  * REGISTER
@@ -14,7 +14,7 @@ router.post("/register", async (req, res) => {
     const { name, email, password } = req.body;
 
     // Check if user exists
-    const existingUserSnap = await users
+    const existingUserSnap = await getUsersCollection()
       .where("email", "==", email)
       .limit(1)
       .get();
@@ -27,7 +27,7 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user in Firestore
-    await users.add({
+    await getUsersCollection().add({
       name,
       email,
       password: hashedPassword,
@@ -50,7 +50,7 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
     // Check if user exists
-    const userSnap = await users.where("email", "==", email).limit(1).get();
+    const userSnap = await getUsersCollection().where("email", "==", email).limit(1).get();
     if (userSnap.empty) {
       return res.status(400).json({ message: "Invalid email or password" });
     }

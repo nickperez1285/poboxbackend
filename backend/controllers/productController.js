@@ -1,4 +1,4 @@
-const stripe = require("../config/stripeConfig");
+const { getStripe } = require("../config/stripeConfig");
 
 exports.getProductDetails = async (req, res) => {
   try {
@@ -18,7 +18,7 @@ exports.getProductDetails = async (req, res) => {
     }
 
     // Fetch product details from Stripe
-    const product = await stripe.prices.retrieve(oneTimeProductPriceId);
+    const product = await getStripe().prices.retrieve(oneTimeProductPriceId);
     res.json({ success: true, product });
   } catch (error) {
     console.error("Error fetching product details:", error);

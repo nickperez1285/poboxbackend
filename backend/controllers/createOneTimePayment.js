@@ -1,4 +1,4 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 
 exports.createOneTimePayment = async (req, res) => {
   const { priceId, userId, email } = req.body;
@@ -31,7 +31,7 @@ exports.createOneTimePayment = async (req, res) => {
 
   try {
     // Create a Stripe Checkout Session for one-time payment
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       client_reference_id: userId,

@@ -10,7 +10,7 @@ const {
 } = require("../middleware/firebaseAuth");
 
 const router = express.Router();
-const db = getFirestore();
+const getDb = () => getFirestore();
 
 /** True if the user has a saved preferred partner location (non-empty partner id). */
 function userHasPreferredLocation(userData) {
@@ -130,6 +130,7 @@ router.get(
     if (!q || String(q).trim().length < 1) return res.json([]);
 
     try {
+      const db = getDb();
       const searchTerm = String(q).trim().toLowerCase();
 
       // Perform parallel prefix searches for both email and nameLower
@@ -487,6 +488,7 @@ router.post(
     }
 
     try {
+      const db = getDb();
       // Find and update partner document with geocoded coordinates
       const partnerSnap = await db
         .collection("partners")
@@ -627,6 +629,7 @@ router.post(
     }
 
     try {
+      const db = getDb();
       const partnerRef = db.doc(`partners/${partnerId}`);
       const partnerSnap = await partnerRef.get();
       const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
@@ -823,6 +826,7 @@ router.post(
     }
 
     try {
+      const db = getDb();
       for (const recipient of recipients) {
         const userRef = db.doc(`users/${recipient.id}`);
         const userSnap = await userRef.get();
@@ -960,6 +964,7 @@ router.post("/user-signup", requireAuth, async (req, res) => {
   }
 
   try {
+    const db = getDb();
     await db.collection("activityLog").add({
       type: "signup",
       userName: name || "Unknown",

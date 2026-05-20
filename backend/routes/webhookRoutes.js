@@ -1,10 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const Stripe = require("stripe");
+const { getStripe } = require("../config/stripeConfig");
 const { activateUserSubscription } = require("../controllers/checkoutController");
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 
 router.post(
   "/",
@@ -14,7 +11,7 @@ router.post(
     let event;
 
     try {
-      event = stripe.webhooks.constructEvent(
+      event = getStripe().webhooks.constructEvent(
         req.body,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET_KEY

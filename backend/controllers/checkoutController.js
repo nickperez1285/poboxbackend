@@ -1,4 +1,4 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 const { createOneTimePayment } = require('../controllers/createOneTimePayment');
 const { admin, getFirestore } = require("../config/firebaseAdmin");
 
@@ -252,7 +252,7 @@ exports.createCheckoutSession = async (req, res) => {
     }
 
     // Create the session
-    const session = await stripe.checkout.sessions.create(sessionConfig);
+    const session = await getStripe().checkout.sessions.create(sessionConfig);
 
     // Respond with the session URL for redirect
     res.json({ success: true, url: session.url });
@@ -273,7 +273,8 @@ exports.getCheckoutSession = async (req, res) => {
   }
 
   try {
-    const session = req.stripeSession || (await stripe.checkout.sessions.retrieve(sessionId));
+    const session =
+      req.stripeSession || (await getStripe().checkout.sessions.retrieve(sessionId));
 
     res.json({
       success: true,
@@ -305,7 +306,7 @@ exports.finalizeCheckoutSession = async (req, res) => {
 
   try {
     const session =
-      req.stripeSession || (await stripe.checkout.sessions.retrieve(sessionId));
+      req.stripeSession || (await getStripe().checkout.sessions.retrieve(sessionId));
     const isPaidSession = session.payment_status === "paid";
     const isCompletedSubscription =
       session.mode === "subscription" && session.status === "complete";

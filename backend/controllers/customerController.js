@@ -1,8 +1,8 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 
 exports.getAllCustomers = async (req, res) => {
     try {
-        const customers = await stripe.customers.list({ limit: 100 });
+        const customers = await getStripe().customers.list({ limit: 100 });
         const customerIds = customers.data.map(customer => customer.id);
 
         res.json({
@@ -21,9 +21,9 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getCustomersWithPlans = async (req, res) => {
     try {
-        const customers = await stripe.customers.list({ limit: 10 });
+        const customers = await getStripe().customers.list({ limit: 10 });
         const customerData = await Promise.all(customers.data.map(async (customer) => {
-            const subscriptions = await stripe.subscriptions.list({
+            const subscriptions = await getStripe().subscriptions.list({
                 customer: customer.id,
                 status: 'all',
                 limit: 10

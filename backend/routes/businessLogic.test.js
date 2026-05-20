@@ -38,11 +38,11 @@ describe("Business Logic & Anti-Abuse", () => {
     test("Referral reward date calculation", () => {
       const now = new Date("2026-01-01T00:00:00Z");
       const oneYearFromNow = new Date(now);
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      oneYearFromNow.setUTCFullYear(oneYearFromNow.getUTCFullYear() + 1);
 
-      expect(oneYearFromNow.getFullYear()).toBe(2027);
-      expect(oneYearFromNow.getMonth()).toBe(0);
-      expect(oneYearFromNow.getDate()).toBe(1);
+      expect(oneYearFromNow.getUTCFullYear()).toBe(2027);
+      expect(oneYearFromNow.getUTCMonth()).toBe(0);
+      expect(oneYearFromNow.getUTCDate()).toBe(1);
     });
   });
 });

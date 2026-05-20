@@ -1,4 +1,4 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { getStripe } = require('../config/stripeConfig');
 
 const validateCoupon = async (req, res) => {
     try {
@@ -13,7 +13,7 @@ const validateCoupon = async (req, res) => {
         }
 
         // Retrieve the coupon from Stripe
-        const couponObject = await stripe.coupons.retrieve(coupon);
+        const couponObject = await getStripe().coupons.retrieve(coupon);
 
         // Check if the coupon is valid and active
         if (!couponObject.valid) {

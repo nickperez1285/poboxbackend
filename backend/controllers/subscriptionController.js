@@ -1,4 +1,4 @@
-const stripe = require('../config/stripeConfig');
+const { getStripe } = require('../config/stripeConfig');
 
 exports.createSubscription = async (req, res) => {
     const { plan, coupon } = req.query;
@@ -9,7 +9,7 @@ exports.createSubscription = async (req, res) => {
 
     try {
         // Fetch active prices from Stripe with expanded product details
-        const prices = await stripe.prices.list({ 
+        const prices = await getStripe().prices.list({ 
             active: true,
             expand: ['data.product']
         });
@@ -40,7 +40,7 @@ exports.createSubscription = async (req, res) => {
             sessionConfig.discounts = [{ coupon }];
         }
 
-        const session = await stripe.checkout.sessions.create(sessionConfig);
+        const session = await getStripe().checkout.sessions.create(sessionConfig);
 
         // Redirect to the Stripe payment page
         res.redirect(session.url);

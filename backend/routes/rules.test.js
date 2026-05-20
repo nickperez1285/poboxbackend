@@ -4,21 +4,29 @@ const {
   assertFails,
 } = require("@firebase/rules-unit-testing");
 const fs = require("fs");
+const path = require("path");
 
-describe("Firestore Security Rules", () => {
+const describeWithFirestoreEmulator = process.env.FIRESTORE_EMULATOR_HOST
+  ? describe
+  : describe.skip;
+
+describeWithFirestoreEmulator("Firestore Security Rules", () => {
   let testEnv;
 
   beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
       projectId: "porchpobox-test",
       firestore: {
-        rules: fs.readFileSync("firestore.rules", "utf8"),
+        rules: fs.readFileSync(
+          path.join(__dirname, "../../../firestore.rules"),
+          "utf8",
+        ),
       },
     });
   });
 
   afterAll(async () => {
-    await testEnv.cleanup();
+    if (testEnv) await testEnv.cleanup();
   });
 
   beforeEach(async () => {
