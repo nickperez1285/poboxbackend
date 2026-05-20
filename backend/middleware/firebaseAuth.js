@@ -92,9 +92,22 @@ const sessionOwnedByUser = (session, uid, email) => {
  * Prevents users from creating/modifying checkout sessions for other users.
  */
 const requireMatchingUserId = (req, res, next) => {
-  const bodyUserId = req.body?.userId || req.body?.user_id;
-  if (bodyUserId && bodyUserId !== req.auth.uid) {
-    return res.status(403).json({ message: "User ID mismatch" });
+  const bodyUserId =
+    req.body?.userId ||
+    req.body?.user_id ||
+    req.query?.userId ||
+    req.params?.userId;
+  const tokenUid = req.auth?.uid;
+
+  if (bodyUserId && tokenUid) {
+    if (String(bodyUserId).trim() !== String(tokenUid).trim()) {
+      console.warn(
+        `[Auth] User ID mismatch: Token(${tokenUid}) vs Request(${bodyUserId})`,
+      );
+      return res
+        .status(403)
+        .json({ message: "userId must match signed-in account" });
+    }
   }
   next();
 };
