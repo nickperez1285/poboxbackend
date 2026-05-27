@@ -47,11 +47,29 @@ const requireAuth = async (req, res, next) => {
 };
 
 /**
- * Sets internal auth flags like isAdmin based on decoded claims.
+ * Sets internal auth flags like isAdmin based on decoded claims or user profile.
  */
-const loadAuthContext = (req, res, next) => {
-  req.isAdmin = !!req.auth?.isAdmin;
-  next();
+const loadAuthContext = async (req, res, next) => {
+  try {
+    if (req.auth?.isAdmin === true || req.auth?.admin === true) {
+      req.isAdmin = true;
+      return next();
+    }
+
+    const uid = req.auth?.uid;
+    if (!uid) {
+      req.isAdmin = false;
+      return next();
+    }
+
+    const userSnap = await getDb().collection("users").doc(uid).get();
+    req.userProfile = userSnap.exists ? userSnap.data() : null;
+    req.isAdmin = req.userProfile?.isAdmin === true;
+    return next();
+  } catch (error) {
+    console.error("[Auth] Failed to load auth context:", error.message);
+    return res.status(500).json({ message: "Failed to load auth context" });
+  }
 };
 
 /**

@@ -1,4 +1,5 @@
 const mockVerifyIdToken = jest.fn();
+let mockUserProfile = null;
 
 jest.mock("../config/firebaseAdmin", () => ({
   admin: {
@@ -12,13 +13,20 @@ jest.mock("../config/firebaseAdmin", () => ({
   getFirestore: () => ({
     collection: () => ({
       doc: () => ({
-        get: jest.fn(),
+        get: jest.fn(async () => ({
+          exists: mockUserProfile !== null,
+          data: () => mockUserProfile,
+        })),
       }),
     }),
   }),
 }));
 
-const { requireAuth, requireAdmin } = require("../middleware/firebaseAuth");
+const {
+  requireAuth,
+  loadAuthContext,
+  requireAdmin,
+} = require("../middleware/firebaseAuth");
 
 describe("Auth Middleware", () => {
   let mockReq;
@@ -35,6 +43,7 @@ describe("Auth Middleware", () => {
     };
     nextFunction = jest.fn();
     mockVerifyIdToken.mockReset();
+    mockUserProfile = null;
   });
 
   test("requireAuth should fail if no token is provided", async () => {
@@ -70,6 +79,16 @@ describe("Auth Middleware", () => {
     expect(mockRes.json).toHaveBeenCalledWith({
       message: "Admin access required",
     });
+  });
+
+  test("loadAuthContext should allow admins marked in Firestore profile", async () => {
+    mockReq.auth = { uid: "admin-user", email: "admin@example.com" };
+    mockUserProfile = { isAdmin: true };
+
+    await loadAuthContext(mockReq, mockRes, nextFunction);
+
+    expect(mockReq.isAdmin).toBe(true);
+    expect(nextFunction).toHaveBeenCalled();
   });
 
   test("requireAdmin should allow admin users", () => {
