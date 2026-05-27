@@ -56,7 +56,70 @@ const getPreferredPartnerId = (prefLocation) => {
   return null;
 };
 
-const activateUserSubscription = async (session, overrideUserId) => {
+const toDateFromUnixSeconds = (value) => {
+  if (!value) return null;
+  const date = new Date(Number(value) * 1000);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getStripeId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return value.id || "";
+};
+
+const getSubscriptionPeriodEnd = (subscription) => {
+  if (!subscription) return null;
+
+  const directPeriodEnd = toDateFromUnixSeconds(subscription.current_period_end);
+  if (directPeriodEnd) return directPeriodEnd;
+
+  const itemPeriodEnds = subscription.items?.data
+    ?.map((item) => toDateFromUnixSeconds(item.current_period_end))
+    .filter(Boolean);
+
+  if (itemPeriodEnds?.length) {
+    return new Date(Math.max(...itemPeriodEnds.map((date) => date.getTime())));
+  }
+
+  return null;
+};
+
+const getInvoicePeriodEnd = (invoice) => {
+  const linePeriodEnds = invoice?.lines?.data
+    ?.map((line) => toDateFromUnixSeconds(line.period?.end))
+    .filter(Boolean);
+
+  if (linePeriodEnds?.length) {
+    return new Date(Math.max(...linePeriodEnds.map((date) => date.getTime())));
+  }
+
+  return toDateFromUnixSeconds(invoice?.period_end);
+};
+
+const getCheckoutSubscriptionDetails = async (session) => {
+  const subscriptionId = getStripeId(session.subscription);
+  if (!subscriptionId) return {};
+
+  const subscription =
+    typeof session.subscription === "object"
+      ? session.subscription
+      : await getStripe().subscriptions.retrieve(subscriptionId);
+
+  return {
+    stripeSubscriptionId: subscriptionId,
+    stripeCustomerId:
+      getStripeId(subscription.customer) || getStripeId(session.customer),
+    stripeSubscriptionStatus: subscription.status || "",
+    subscriptionEndsAt: getSubscriptionPeriodEnd(subscription),
+  };
+};
+
+const activateUserSubscription = async (
+  session,
+  overrideUserId,
+  subscriptionDetails = null,
+) => {
   const userId = overrideUserId || session.client_reference_id;
 
   if (!userId) {
@@ -80,11 +143,32 @@ const activateUserSubscription = async (session, overrideUserId) => {
     ? currentData.subscriptionEndsAt.toDate()
     : null;
   const purchaseDate = new Date();
+  const resolvedSubscriptionDetails =
+    subscriptionDetails || (await getCheckoutSubscriptionDetails(session));
+  const stripePeriodEnd = resolvedSubscriptionDetails.subscriptionEndsAt;
   const extendingBeforeExpiry =
     existingEndDate && existingEndDate.getTime() > Date.now();
   const extensionBaseDate =
     extendingBeforeExpiry ? existingEndDate : purchaseDate;
-  const endDate = new Date(extensionBaseDate.getTime() + THIRTY_DAYS_IN_MS);
+  const endDate =
+    stripePeriodEnd || new Date(extensionBaseDate.getTime() + THIRTY_DAYS_IN_MS);
+
+  const stripeFields = {};
+  if (resolvedSubscriptionDetails.stripeCustomerId) {
+    stripeFields.stripeCustomerId = resolvedSubscriptionDetails.stripeCustomerId;
+  } else if (getStripeId(session.customer)) {
+    stripeFields.stripeCustomerId = getStripeId(session.customer);
+  }
+  if (resolvedSubscriptionDetails.stripeSubscriptionId) {
+    stripeFields.stripeSubscriptionId =
+      resolvedSubscriptionDetails.stripeSubscriptionId;
+  } else if (getStripeId(session.subscription)) {
+    stripeFields.stripeSubscriptionId = getStripeId(session.subscription);
+  }
+  if (resolvedSubscriptionDetails.stripeSubscriptionStatus) {
+    stripeFields.stripeSubscriptionStatus =
+      resolvedSubscriptionDetails.stripeSubscriptionStatus;
+  }
 
   await userRef.set(
     {
@@ -92,7 +176,8 @@ const activateUserSubscription = async (session, overrideUserId) => {
       status: "active",
       subscribedAt: admin.firestore.Timestamp.fromDate(purchaseDate),
       subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate),
-      lastCheckoutSessionId: session.id
+      lastCheckoutSessionId: session.id,
+      ...stripeFields,
     },
     { merge: true }
   );
@@ -191,6 +276,121 @@ const activateUserSubscription = async (session, overrideUserId) => {
     subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate)
   };
 };
+
+const findUserByStripeSubscription = async (firestore, subscriptionId) => {
+  if (!subscriptionId) return null;
+
+  const snapshot = await firestore
+    .collection("users")
+    .where("stripeSubscriptionId", "==", subscriptionId)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+  return snapshot.docs[0];
+};
+
+const findUserByStripeCustomer = async (firestore, customerId) => {
+  if (!customerId) return null;
+
+  const snapshot = await firestore
+    .collection("users")
+    .where("stripeCustomerId", "==", customerId)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+  return snapshot.docs[0];
+};
+
+const updateSubscriptionFromInvoice = async (invoice) => {
+  const subscriptionId = getStripeId(invoice.subscription);
+  const customerId = getStripeId(invoice.customer);
+  const invoiceId = invoice.id;
+
+  if (!subscriptionId && !customerId) {
+    console.warn("Skipping invoice without Stripe subscription/customer IDs:", {
+      invoiceId,
+    });
+    return { skipped: true, reason: "missing_stripe_ids" };
+  }
+
+  const firestore = getFirestore();
+  let userDoc = await findUserByStripeSubscription(firestore, subscriptionId);
+
+  if (!userDoc && customerId) {
+    userDoc = await findUserByStripeCustomer(firestore, customerId);
+  }
+
+  if (!userDoc) {
+    console.warn("Skipping invoice for unknown Stripe subscription/customer:", {
+      invoiceId,
+      subscriptionId: subscriptionId || null,
+      customerId: customerId || null,
+    });
+    return { skipped: true, reason: "user_not_found" };
+  }
+
+  const currentData = userDoc.data() || {};
+  if (invoiceId && currentData.lastStripeInvoiceId === invoiceId) {
+    return {
+      alreadyProcessed: true,
+      userId: userDoc.id,
+      subscriptionEndsAt: timestampToDate(currentData.subscriptionEndsAt),
+    };
+  }
+
+  let subscription = null;
+  if (subscriptionId) {
+    subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+  }
+
+  const endDate =
+    getSubscriptionPeriodEnd(subscription) || getInvoicePeriodEnd(invoice);
+
+  if (!endDate) {
+    throw new Error(
+      `Unable to determine subscription period end for invoice ${invoiceId}.`,
+    );
+  }
+
+  await userDoc.ref.set(
+    {
+      status: "active",
+      subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate),
+      stripeCustomerId: customerId || currentData.stripeCustomerId || "",
+      stripeSubscriptionId:
+        subscriptionId || currentData.stripeSubscriptionId || "",
+      stripeSubscriptionStatus:
+        subscription?.status || currentData.stripeSubscriptionStatus || "",
+      lastStripeInvoiceId: invoiceId || currentData.lastStripeInvoiceId || "",
+      renewedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  try {
+    await firestore.collection("activityLog").add({
+      type: "subscription_renewal",
+      userId: userDoc.id,
+      userEmail: currentData.email || invoice.customer_email || "",
+      userName: currentData.name || "",
+      stripeInvoiceId: invoiceId || "",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (logErr) {
+    console.error("Failed to write subscription renewal log:", logErr);
+  }
+
+  return {
+    alreadyProcessed: false,
+    userId: userDoc.id,
+    subscriptionEndsAt: admin.firestore.Timestamp.fromDate(endDate),
+  };
+};
+
+exports.activateUserSubscription = activateUserSubscription;
+exports.updateSubscriptionFromInvoice = updateSubscriptionFromInvoice;
 
 exports.createCheckoutSession = async (req, res) => {
   const { priceId, isSubscription, coupon, userId, email } = req.body;

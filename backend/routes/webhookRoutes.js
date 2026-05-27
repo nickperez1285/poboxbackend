@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const { getStripe } = require("../config/stripeConfig");
-const { activateUserSubscription } = require("../controllers/checkoutController");
+const {
+  activateUserSubscription,
+  updateSubscriptionFromInvoice,
+} = require("../controllers/checkoutController");
 
 router.post(
   "/",
@@ -30,6 +33,7 @@ router.post(
 
       if (event.type === "invoice.payment_succeeded") {
         console.log("Invoice payment succeeded:", event.data.object.id);
+        await updateSubscriptionFromInvoice(event.data.object);
       }
     } catch (error) {
       console.error("Webhook processing error:", error);
