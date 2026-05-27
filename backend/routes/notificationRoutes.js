@@ -41,6 +41,29 @@ function partnerAddressFromPartnerDoc(partnerData) {
   };
 }
 
+const timestampToDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const hasActiveSubscription = (userData, nowMs = Date.now()) => {
+  const endsAt = timestampToDate(userData?.subscriptionEndsAt);
+  return Boolean(endsAt && endsAt.getTime() > nowMs);
+};
+
+const getEffectiveUserStatus = (userData, nowMs = Date.now()) => {
+  const storedStatus = String(userData?.status || "")
+    .trim()
+    .toLowerCase();
+
+  if (storedStatus === "active" || storedStatus === "member") return "active";
+  if (hasActiveSubscription(userData, nowMs)) return "active";
+  if (storedStatus === "trial") return "trial";
+  return "inactive";
+};
+
 const adminInbox = "contact@porchpobox.com";
 const resendApiUrl = "https://api.resend.com/emails";
 
@@ -159,6 +182,7 @@ router.get(
       const results = await Promise.all(
         userDocs.map(async (uDoc) => {
           const u = uDoc.data();
+          const effectiveStatus = getEffectiveUserStatus(u);
           const countSnap = await db
             .doc(`partners/${partnerId}/packageCounts/${uDoc.id}`)
             .get();
@@ -168,7 +192,7 @@ router.get(
             id: uDoc.id,
             name: u.name || "",
             email: u.email || "",
-            status: u.status || "inactive",
+            status: effectiveStatus,
             phoneNumber: u.phoneNumber || "",
             streetAddress: u.streetAddress || "",
             city: u.city || "",
@@ -641,6 +665,7 @@ router.post(
         const userSnap = await userRef.get();
         const userData = userSnap.exists ? userSnap.data() : {};
         const currentCheckedIn = Number(userData.packagesCheckedIn) || 0;
+        const effectiveStatus = getEffectiveUserStatus(userData, now);
 
         const partnerPackageRef = db.doc(
           `partners/${partnerId}/packageCounts/${recipient.id}`,
@@ -663,7 +688,9 @@ router.post(
             recipient.packageCount,
           ),
         };
-        if (userData.status !== "active") {
+        if (effectiveStatus === "active") {
+          userUpdates.status = "active";
+        } else {
           userUpdates.status = currentCheckedIn === 0 ? "trial" : "inactive";
         }
 
@@ -749,7 +776,7 @@ router.post(
               totalPickedUp: currentTotalPickedUp,
               name: recipient.name || "Unnamed user",
               email: recipient.email || "",
-              status: userUpdates.status || userData.status || "inactive",
+              status: userUpdates.status || effectiveStatus,
               ...(shouldSendEmail
                 ? {
                     lastCheckInEmailAt:
@@ -832,20 +859,23 @@ router.post(
         const userSnap = await userRef.get();
         const userData = userSnap.exists ? userSnap.data() : {};
         const currentDelivered = Number(userData.packagesDelivered) || 0;
+        const effectiveStatus = getEffectiveUserStatus(userData);
         const updates = {
           packagesDelivered: admin.firestore.FieldValue.increment(
             recipient.packageCount,
           ),
         };
 
-        if (userData.status !== "active" && currentDelivered === 0) {
+        if (effectiveStatus === "active") {
+          updates.status = "active";
+        } else if (currentDelivered === 0) {
           updates.status = "inactive";
         }
 
         const writes = [userRef.set(updates, { merge: true })];
 
         // Send delivery email to all non-active users on every delivery
-        if (userData.status !== "active" && recipient.email) {
+        if (effectiveStatus !== "active" && recipient.email) {
           const plansUrl = `${process.env.FRONTEND_URL || "https://porchpobox.com"}/plans`;
           const isFirstDelivery = currentDelivered === 0;
           writes.push(
@@ -917,7 +947,7 @@ router.post(
                 count: nextWaiting,
                 totalPickedUp: currentTotalPickedUp + recipient.packageCount,
                 lastCheckInEmailAt: null,
-                status: updates.status || userData.status || "inactive",
+                status: updates.status || effectiveStatus,
                 ...(nextWaiting <= 0 ? { holdForResubscribe: false } : {}),
               },
               { merge: true },

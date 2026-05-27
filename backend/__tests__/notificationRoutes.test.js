@@ -354,6 +354,27 @@ describe("POST /package-check-in", () => {
     expect(mockDocState.get("users/u1").status).toBe("active");
   });
 
+  it("treats stale inactive users with future subscriptionEndsAt as active", async () => {
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    mockDocState.set("users/u1", {
+      email: "a@test.com",
+      status: "inactive",
+      packagesCheckedIn: 5,
+      notificationsEnabled: true,
+      subscriptionEndsAt: admin.firestore.Timestamp.fromDate(future),
+    });
+    mockDocState.set("partners/p1", { packageCheckInCount: 5 });
+
+    const res = await partnerRequest(buildApp()).post("/api/notifications/package-check-in").send({
+      vendorName: "Shop A", partnerId: "p1",
+      recipients: [{ id: "u1", name: "Mista Poom", email: "a@test.com", packageCount: 1 }]
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockDocState.get("users/u1").status).toBe("active");
+    expect(mockDocState.get("partners/p1/packageCounts/u1").status).toBe("active");
+  });
+
   it("skips email when notificationsEnabled is false", async () => {
     mockDocState.set("users/u1", { email: "a@test.com", status: "active", packagesCheckedIn: 1, notificationsEnabled: false });
     mockDocState.set("partners/p1", { packageCheckInCount: 1 });
