@@ -6,6 +6,9 @@ jest.mock("../config/firebaseAdmin", () => ({
       verifyIdToken: mockVerifyIdToken,
     }),
   },
+  getAuth: () => ({
+    verifyIdToken: mockVerifyIdToken,
+  }),
   getFirestore: () => ({
     collection: () => ({
       doc: () => ({

@@ -1,6 +1,24 @@
-const { admin, getFirestore } = require("../config/firebaseAdmin");
+const { getAuth, getFirestore } = require("../config/firebaseAdmin");
 
 const getDb = () => getFirestore();
+
+const getTokenProjectId = (idToken) => {
+  const [, payload] = String(idToken || "").split(".");
+  if (!payload) return null;
+
+  try {
+    const normalizedPayload = payload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const claims = JSON.parse(
+      Buffer.from(normalizedPayload, "base64").toString("utf8"),
+    );
+    return claims.aud || null;
+  } catch (error) {
+    return null;
+  }
+};
 
 /**
  * Verifies Firebase ID Token from Authorization header.
@@ -14,12 +32,16 @@ const requireAuth = async (req, res, next) => {
 
   const idToken = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await getAuth().verifyIdToken(idToken);
     req.auth = decodedToken;
     req.authUid = decodedToken.uid;
     next();
   } catch (error) {
-    console.error("[Auth] Token verification failed:", error.message);
+    console.error("[Auth] Token verification failed:", {
+      message: error.message,
+      tokenProjectId: getTokenProjectId(idToken),
+      configuredProjectId: process.env.FIREBASE_PROJECT_ID || null,
+    });
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };

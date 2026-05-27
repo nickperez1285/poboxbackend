@@ -117,7 +117,13 @@ jest.mock("../config/firebaseAdmin", () => {
     })
   });
 
-  return { admin, getFirestore };
+  return {
+    admin,
+    getAuth: () => ({
+      verifyIdToken: jest.fn(),
+    }),
+    getFirestore,
+  };
 });
 
 const { admin } = require("../config/firebaseAdmin");

@@ -39,7 +39,13 @@ const getFirestore = () => {
   return admin.firestore(app);
 };
 
+const getAuth = () => {
+  const app = getFirebaseAdminApp();
+  return admin.auth(app);
+};
+
 module.exports = {
   admin,
+  getAuth,
   getFirestore
 };
