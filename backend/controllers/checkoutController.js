@@ -115,6 +115,28 @@ const getCheckoutSubscriptionDetails = async (session) => {
   };
 };
 
+const resolveStripeDiscount = async (code) => {
+  const normalizedCode = String(code || "").trim();
+  if (!normalizedCode) return null;
+
+  try {
+    const coupon = await getStripe().coupons.retrieve(normalizedCode);
+    if (coupon?.valid) return { coupon: coupon.id };
+  } catch (error) {
+    if (error.type !== "StripeInvalidRequestError") throw error;
+  }
+
+  const promotionCodes = await getStripe().promotionCodes.list({
+    code: normalizedCode,
+    active: true,
+    limit: 1,
+  });
+  const promotionCode = promotionCodes.data?.[0];
+
+  if (promotionCode?.id) return { promotion_code: promotionCode.id };
+  return null;
+};
+
 const activateUserSubscription = async (
   session,
   overrideUserId,
@@ -392,6 +414,70 @@ const updateSubscriptionFromInvoice = async (invoice) => {
 exports.activateUserSubscription = activateUserSubscription;
 exports.updateSubscriptionFromInvoice = updateSubscriptionFromInvoice;
 
+exports.updateSubscriptionCancellation = async (req, res) => {
+  const userId = req.auth?.uid;
+  const { cancelAtPeriodEnd = true } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ success: false, message: "Missing user" });
+  }
+
+  try {
+    const firestore = getFirestore();
+    const userRef = firestore.collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const subscriptionId = userData.stripeSubscriptionId;
+
+    if (!subscriptionId) {
+      return res.status(400).json({
+        success: false,
+        message: "No Stripe subscription is linked to this account.",
+      });
+    }
+
+    const subscription = await getStripe().subscriptions.update(subscriptionId, {
+      cancel_at_period_end: Boolean(cancelAtPeriodEnd),
+    });
+    const periodEnd = getSubscriptionPeriodEnd(subscription);
+
+    const updatePayload = {
+      subscriptionCancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+      stripeSubscriptionStatus: subscription.status || "",
+      subscriptionCancellationUpdatedAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const cancelAtDate = toDateFromUnixSeconds(subscription.cancel_at);
+    if (cancelAtDate) {
+      updatePayload.subscriptionCancelAt =
+        admin.firestore.Timestamp.fromDate(cancelAtDate);
+    } else {
+      updatePayload.subscriptionCancelAt = null;
+    }
+
+    if (periodEnd) {
+      updatePayload.subscriptionEndsAt =
+        admin.firestore.Timestamp.fromDate(periodEnd);
+    }
+
+    await userRef.set(updatePayload, { merge: true });
+
+    return res.json({
+      success: true,
+      cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+      subscriptionEndsAt: periodEnd ? periodEnd.toISOString() : null,
+      status: subscription.status || "",
+    });
+  } catch (error) {
+    console.error("Error updating subscription cancellation:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Unable to update subscription settings.",
+    });
+  }
+};
+
 exports.createCheckoutSession = async (req, res) => {
   const { priceId, isSubscription, coupon, userId, email } = req.body;
   const baseUrl = process.env.BASE_URL;
@@ -446,9 +532,18 @@ exports.createCheckoutSession = async (req, res) => {
       cancel_url: `${baseUrl}/checkout/cancel`,
     };
 
-    // Add discount if a coupon is provided
+    // Add discount if a coupon or promotion code is provided
     if (coupon) {
-      sessionConfig.discounts = [{ coupon }];
+      const discount = await resolveStripeDiscount(coupon);
+      if (!discount) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid promo code",
+        });
+      }
+      sessionConfig.discounts = [discount];
+    } else {
+      sessionConfig.allow_promotion_codes = true;
     }
 
     // Create the session

@@ -29,6 +29,10 @@ const getSession = ensureFunction(
   checkoutController.getCheckoutSession,
   "getCheckoutSession",
 );
+const updateCancellation = ensureFunction(
+  checkoutController.updateSubscriptionCancellation,
+  "updateSubscriptionCancellation",
+);
 
 const {
   requireAuth,
@@ -54,6 +58,11 @@ router.get(
   requireAuth,
   requireOwnedCheckoutSession,
   getSession,
+);
+router.post(
+  "/subscription-cancellation",
+  requireAuth,
+  updateCancellation,
 );
 
 module.exports = router;

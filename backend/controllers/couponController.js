@@ -3,23 +3,40 @@ const { getStripe } = require('../config/stripeConfig');
 const validateCoupon = async (req, res) => {
     try {
         const { coupon } = req.body;
+        const normalizedCoupon = String(coupon || "").trim();
 
         // Basic validation
-        if (!coupon) {
+        if (!normalizedCoupon) {
             return res.status(400).json({
                 success: false,
                 message: 'Coupon code is required'
             });
         }
 
-        // Retrieve the coupon from Stripe
-        const couponObject = await getStripe().coupons.retrieve(coupon);
+        let couponObject = null;
+        let promotionCode = null;
+
+        try {
+            couponObject = await getStripe().coupons.retrieve(normalizedCoupon);
+        } catch (error) {
+            if (error.type !== 'StripeInvalidRequestError') throw error;
+        }
+
+        if (!couponObject) {
+            const promotionCodes = await getStripe().promotionCodes.list({
+                code: normalizedCoupon,
+                active: true,
+                limit: 1
+            });
+            promotionCode = promotionCodes.data?.[0] || null;
+            couponObject = promotionCode?.coupon || null;
+        }
 
         // Check if the coupon is valid and active
-        if (!couponObject.valid) {
+        if (!couponObject?.valid) {
             return res.status(400).json({
                 success: false,
-                message: 'Coupon is no longer valid'
+                message: 'Promo code is no longer valid'
             });
         }
 
@@ -27,6 +44,8 @@ const validateCoupon = async (req, res) => {
             success: true,
             coupon: {
                 id: couponObject.id,
+                promotionCodeId: promotionCode?.id || null,
+                code: promotionCode?.code || normalizedCoupon,
                 percent_off: couponObject.percent_off,
                 amount_off: couponObject.amount_off,
                 currency: couponObject.currency,
