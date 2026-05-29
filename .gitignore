@@ -70,3 +70,6 @@ node_modules/
 .vercel
 
 
+.env 
+.env.test
+.env.live

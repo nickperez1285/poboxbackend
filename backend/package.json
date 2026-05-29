@@ -20,7 +20,9 @@
   "main": "server.js",
   "scripts": {
     "test": "jest --runInBand",
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:test": "cp ../.env.test ../.env && node server.js",
+    "start:live": "cp ../.env.live ../.env && node server.js"
   },
   "engines": {
     "node": ">=18"

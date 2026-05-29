@@ -3,6 +3,7 @@ const checkoutRoutes = require("./routes/checkoutRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const priceRoutes = require("./routes/priceRoutes");
 const couponRoutes = require("./routes/couponRoutes");
+const stripeConfigRoutes = require("./routes/stripeConfig");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 // const webhookRoutes = require('./routes/webhookRoutes');
 const productRoutes = require("./routes/productRoutes");
@@ -42,6 +43,7 @@ app.use("/api/cron", renewalRemindersRoute);
 
 app.use("/api", customerRoutes);
 app.use("/api", priceRoutes);
+app.use("/api", stripeConfigRoutes);
 app.use("/api", subscriptionRoutes);
 app.use("/api", checkoutRoutes);
 app.use("/api", couponRoutes);

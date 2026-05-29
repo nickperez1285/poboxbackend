@@ -507,6 +507,25 @@ exports.createCheckoutSession = async (req, res) => {
     });
   }
 
+  if (isSubscription) {
+    const firestore = getFirestore();
+    const userSnap = await firestore.collection("users").doc(userId).get();
+    if (!userSnap.exists) {
+      return res.status(400).json({
+        success: false,
+        message: "User profile not found.",
+      });
+    }
+    const userData = userSnap.data();
+    if (!userData.prefLocation || !getPreferredPartnerId(userData.prefLocation)) {
+      return res.status(400).json({
+        success: false,
+        message: "You must set a preferred delivery location before subscribing.",
+        redirect: "/profile/settings?highlight=location",
+      });
+    }
+  }
+
   try {
     // If it's a one-time payment, use the dedicated endpoint
     if (!isSubscription) {
