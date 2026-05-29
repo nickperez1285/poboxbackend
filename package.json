@@ -2,8 +2,8 @@
   "name": "poboxbackend",
   "private": true,
   "scripts": {
-    "start:test": "cp .env.test .env && npm --prefix backend start",
-    "start:live": "cp .env.live .env && npm --prefix backend start",
+    "start:test": "cp .env.test backend/.env && npm --prefix backend start",
+    "start:live": "cp .env.live backend/.env && npm --prefix backend start",
     "test": "jest",
     "postinstall": "npm install --prefix backend"
   },

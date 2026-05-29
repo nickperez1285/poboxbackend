@@ -224,6 +224,24 @@ const activateUserSubscription = async (
     } catch (partnerLogErr) {
       console.error("Failed to write partner subscription activity:", partnerLogErr);
     }
+
+    try {
+      await firestore
+        .collection("partners")
+        .doc(preferredPartnerId)
+        .collection("packageCounts")
+        .doc(userId)
+        .set(
+          {
+            status: "active",
+            name: currentData.name || "",
+            email: session.customer_email || currentData.email || "",
+          },
+          { merge: true },
+        );
+    } catch (pkgCountErr) {
+      console.error("Failed to update packageCounts status:", pkgCountErr);
+    }
   }
 
   // Log subscription payment to activity log
