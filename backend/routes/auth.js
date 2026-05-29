@@ -29,6 +29,7 @@ router.post("/register", async (req, res) => {
     // Create user in Firestore
     await getUsersCollection().add({
       name,
+      nameLower: (name || "").toLowerCase(),
       email,
       password: hashedPassword,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
