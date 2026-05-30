@@ -265,23 +265,14 @@ const activateUserSubscription = async (
     const plansUrl = `${process.env.FRONTEND_URL || "https://porchpobox.com"}/profile`;
 
     if (toEmail) {
-      const resendApiUrl = "https://api.resend.com/emails";
-      const apiKey = process.env.RESEND_API_KEY;
-      const from = process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM_EMAIL;
+      const { sendEmail, adminInbox } = require("../lib/email");
 
-      if (apiKey && from) {
-        await fetch(resendApiUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            from,
-            to: toEmail,
-            reply_to: "contact@porchpobox.com",
-            subject: "You're subscribed! Welcome to Porch P.O. Box 📦",
-            text: [
+      if (process.env.RESEND_API_KEY && (process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM_EMAIL)) {
+        await sendEmail({
+          to: toEmail,
+          replyTo: adminInbox,
+          subject: "You're subscribed! Welcome to Porch P.O. Box 📦",
+          text: [
               `Hello ${toName},`,
               "",
               "Congratulations — your Porch P.O. Box subscription is now active!",

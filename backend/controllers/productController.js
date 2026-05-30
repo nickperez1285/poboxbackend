@@ -1,6 +1,6 @@
 const { getStripe } = require("../config/stripeConfig");
 
-exports.getProductDetails = async (req, res) => {
+exports.getOneTimePrice = async (req, res) => {
   try {
     const oneTimeProductPriceId = process.env.ONE_TIME_PRODUCT_PRICE_ID;
 
@@ -17,9 +17,11 @@ exports.getProductDetails = async (req, res) => {
         });
     }
 
-    // Fetch product details from Stripe
-    const product = await getStripe().prices.retrieve(oneTimeProductPriceId);
-    res.json({ success: true, product });
+    // Fetch price with expanded product details from Stripe
+    const price = await getStripe().prices.retrieve(oneTimeProductPriceId, {
+      expand: ["product"],
+    });
+    res.json({ success: true, price });
   } catch (error) {
     console.error("Error fetching product details:", error);
     res

@@ -1,6 +1,6 @@
 const express = require('express');
-const { getProductDetails } = require('../controllers/productController');
 const router = express.Router();
+const { getOneTimePrice } = require('../controllers/productController');
 
-router.get('/product-details', getProductDetails);
+router.get('/one-time-price', getOneTimePrice);
 module.exports = router;

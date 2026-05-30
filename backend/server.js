@@ -5,10 +5,8 @@ const priceRoutes = require("./routes/priceRoutes");
 const couponRoutes = require("./routes/couponRoutes");
 const stripeConfigRoutes = require("./routes/stripeConfig");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
-// const webhookRoutes = require('./routes/webhookRoutes');
 const productRoutes = require("./routes/productRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
-const authRoutes = require("./routes/auth");
 const debugRoutes = require("./routes/debugRoutes");
 const {
   requireAuth,
@@ -17,16 +15,31 @@ const {
 } = require("./middleware/firebaseAuth");
 const renewalRemindersRoute = require("./routes/cron/renewalReminders");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const { corsOptions } = require("./middleware/corsConfig");
-// removed for vercel
-// const dotenv = require('dotenv');
-// dotenv.config();
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
 
 const app = express();
+
+// Security headers
+app.use(helmet());
 
 // Apply CORS at the very top to ensure preflight requests
 // are handled before any body parsing or route matching.
 app.use(cors(corsOptions));
+
+// Rate limiting for API routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests, please try again later" },
+});
+app.use("/api", apiLimiter);
 
 app.post(
   "/api/webhook",
@@ -48,13 +61,9 @@ app.use("/api", subscriptionRoutes);
 app.use("/api", checkoutRoutes);
 app.use("/api", couponRoutes);
 app.use("/api", productRoutes);
-app.use("/api/auth", require("./routes/auth"));
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
-});
-app.post("/api/auth/login", (req, res) => {
-  res.status(200).json({ debug: "route hit" });
 });
 
 const PORT = process.env.PORT || 3001;

@@ -12,6 +12,13 @@ const {
 const router = express.Router();
 const getDb = () => getFirestore();
 
+const esc = (s) => String(s ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#39;");
+
 /** True if the user has a saved preferred partner location (non-empty partner id). */
 function userHasPreferredLocation(userData) {
   const pl = userData && userData.prefLocation;
@@ -64,58 +71,11 @@ const getEffectiveUserStatus = (userData, nowMs = Date.now()) => {
   return "inactive";
 };
 
-const adminInbox = "contact@porchpobox.com";
-const resendApiUrl = "https://api.resend.com/emails";
-
-const sendEmail = async ({ to, replyTo, subject, html }) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM_EMAIL || process.env.SMTP_FROM_EMAIL;
-
-  if (!apiKey) {
-    throw new Error("Missing RESEND_API_KEY");
-  }
-
-  if (!from) {
-    throw new Error("Missing MAIL_FROM_EMAIL or SMTP_FROM_EMAIL");
-  }
-
-  const payload = {
-    from,
-    to,
-    subject,
-    reply_to: replyTo,
-  };
-
-  if (html) {
-    payload.html = html;
-  }
-
-  const response = await fetch(resendApiUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    console.error("Resend API error:", {
-      status: response.status,
-      errorBody,
-      payload,
-    });
-    throw new Error(
-      errorBody?.message ||
-        errorBody?.error?.message ||
-        `Resend API request failed with status ${response.status}`,
-    );
-  }
-};
-
-const htmlEmail = (body) =>
-  `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);max-width:600px;width:100%"><tr><td style="background:#121212;padding:28px 32px;text-align:center"><img src="https://porchpobox.com/porchlogo.png" alt="Porch P.O. Box" style="height:56px;display:block;margin:0 auto" /></td></tr><tr><td style="padding:36px 32px;color:#222;font-size:15px;line-height:1.7">${body}</td></tr><tr><td style="background:#f8f8f8;border-top:1px solid #eee;padding:20px 32px;text-align:center"><img src="https://porchpobox.com/logo.png" alt="Porch P.O. Box" style="height:48px;display:block;margin:0 auto 12px" /><p style="margin:0 0 4px;font-size:13px;color:#888">Porch P.O. Box &mdash; Convenient Package Receiving</p><p style="margin:0;font-size:13px"><a href="mailto:contact@porchpobox.com" style="color:#d4af37;text-decoration:none">contact@porchpobox.com</a></p></td></tr></table></td></tr></table></body></html>`;
+const {
+  sendEmail,
+  htmlEmail,
+  adminInbox,
+} = require("../lib/email");
 
 /** Helper to geocode a string address into {lat, lng} using Google Maps API. */
 const geocodeAddress = async (address) => {
@@ -298,56 +258,63 @@ router.post(
   },
 );
 
+const validateVendorRegistration = (req, res, next) => {
+  const {
+    businessName,
+    email,
+    phoneNumber,
+    streetAddress,
+    city,
+    state,
+    zipCode,
+  } = req.body || {};
+
+  if (
+    !businessName ||
+    !email ||
+    !phoneNumber ||
+    !streetAddress ||
+    !city ||
+    !state ||
+    !zipCode
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Missing vendor registration fields" });
+  }
+
+  const tokenEmail = (req.auth.email || "").toLowerCase();
+  if (tokenEmail !== String(email).toLowerCase()) {
+    return res
+      .status(403)
+      .json({ message: "Email must match signed-in account" });
+  }
+
+  next();
+};
+
 router.post(
   "/vendor-registration",
   requireAuth,
   loadAuthContext,
+  validateVendorRegistration,
   requirePartnerAccount,
   async (req, res) => {
-    const {
-      businessName,
-      email,
-      phoneNumber,
-      streetAddress,
-      city,
-      state,
-      zipCode,
-    } = req.body || {};
-
-    if (
-      !businessName ||
-      !email ||
-      !phoneNumber ||
-      !streetAddress ||
-      !city ||
-      !state ||
-      !zipCode
-    ) {
-      return res
-        .status(400)
-        .json({ message: "Missing vendor registration fields" });
-    }
-
-    const tokenEmail = (req.auth.email || "").toLowerCase();
-    if (tokenEmail !== String(email).toLowerCase()) {
-      return res
-        .status(403)
-        .json({ message: "Email must match signed-in account" });
-    }
+    const { businessName, email, phoneNumber, streetAddress, city, state, zipCode } = req.body || {};
 
     try {
       await sendEmail({
         to: adminInbox,
         replyTo: email,
-        subject: `New Vendor Registration: ${businessName}`,
+        subject: `New Vendor Registration: ${esc(businessName)}`,
         html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">New Vendor Registration</h2>
         <p>A new vendor has registered and is awaiting review.</p>
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Business Name</td><td style="padding:8px 12px;background:#fafafa">${businessName}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Email</td><td style="padding:8px 12px;background:#fafafa">${email}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Phone</td><td style="padding:8px 12px;background:#fafafa">${phoneNumber}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Address</td><td style="padding:8px 12px;background:#fafafa">${streetAddress}, ${city}, ${state} ${zipCode}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Business Name</td><td style="padding:8px 12px;background:#fafafa">${esc(businessName)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Email</td><td style="padding:8px 12px;background:#fafafa">${esc(email)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Phone</td><td style="padding:8px 12px;background:#fafafa">${esc(phoneNumber)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Address</td><td style="padding:8px 12px;background:#fafafa">${esc(streetAddress)}, ${esc(city)}, ${esc(state)} ${esc(zipCode)}</td></tr>
         </table>
         <p style="text-align:center;margin:28px 0">
           <a href="https://porchpobox.com/admin" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">Review in Admin Portal</a>
@@ -360,7 +327,7 @@ router.post(
         replyTo: adminInbox,
         subject: "Porch P.O. Box — Vendor Request Received",
         html: htmlEmail(`
-        <h2 style="margin:0 0 16px;color:#121212">Request Received, ${businessName}!</h2>
+        <h2 style="margin:0 0 16px;color:#121212">Request Received, ${esc(businessName)}!</h2>
         <p>Thank you for applying to become a Porch P.O. Box vendor.</p>
         <p>Your registration has been received and is currently under review. We'll reach out once the review is complete.</p>
         <p style="color:#666;font-size:14px">Questions? Just reply to this email and we'll be happy to help.</p>
@@ -387,16 +354,16 @@ router.post("/contact", async (req, res) => {
     await sendEmail({
       to: adminInbox,
       replyTo: email,
-      subject: `New Contact Form Submission: ${subject || "General Inquiry"}`,
+      subject: `New Contact Form Submission: ${esc(subject || "General Inquiry")}`,
       html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">New Contact Form Submission</h2>
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Name</td><td style="padding:8px 12px;background:#fafafa">${name}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Email</td><td style="padding:8px 12px;background:#fafafa">${email}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Subject</td><td style="padding:8px 12px;background:#fafafa">${subject || "General Inquiry"}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Name</td><td style="padding:8px 12px;background:#fafafa">${esc(name)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Email</td><td style="padding:8px 12px;background:#fafafa">${esc(email)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Subject</td><td style="padding:8px 12px;background:#fafafa">${esc(subject || "General Inquiry")}</td></tr>
         </table>
         <p><strong>Message:</strong></p>
-        <div style="padding:16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;white-space:pre-wrap;color:#333">${message}</div>
+        <div style="padding:16px;background:#f9f9f9;border-radius:8px;border:1px solid #eee;white-space:pre-wrap;color:#333">${esc(message)}</div>
       `),
     });
 
@@ -421,7 +388,7 @@ router.post("/welcome", async (req, res) => {
       replyTo: adminInbox,
       subject: "Welcome to Porch P.O. Box",
       html: htmlEmail(`
-        <h2 style="margin:0 0 16px;color:#121212">Welcome, ${name || "there"}!</h2>
+        <h2 style="margin:0 0 16px;color:#121212">Welcome, ${esc(name || "there")}!</h2>
         <p>Your Porch P.O. Box account has been created successfully.</p>
         <p>Your <strong>first package delivery is on us</strong> — no subscription needed to try the service.</p>
         <p>Ready to get unlimited access? View our plans and subscribe today:</p>
@@ -451,6 +418,7 @@ router.post("/referral", async (req, res) => {
     let referrerName = null;
     if (referralCode) {
       try {
+        const db = getDb();
         const referrerSnap = await db
           .collection("users")
           .where("referralCode", "==", referralCode.toUpperCase())
@@ -474,9 +442,9 @@ router.post("/referral", async (req, res) => {
       html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">New Referral Submission</h2>
         <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Referral Email</td><td style="padding:8px 12px;background:#fafafa">${email}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Referral Code</td><td style="padding:8px 12px;background:#fafafa">${referralCode ? `<strong>${referralCode.toUpperCase()}</strong>${referrerName ? ` &mdash; submitted by <strong>${referrerName}</strong>` : " (code not matched to any user)"}` : "Not provided"}</td></tr>
-          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Additional Info</td><td style="padding:8px 12px;background:#fafafa">${additionalInfo || "None provided"}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold;width:40%">Referral Email</td><td style="padding:8px 12px;background:#fafafa">${esc(email)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Referral Code</td><td style="padding:8px 12px;background:#fafafa">${referralCode ? `<strong>${esc(referralCode.toUpperCase())}</strong>${referrerName ? ` &mdash; submitted by <strong>${esc(referrerName)}</strong>` : " (code not matched to any user)"}` : "Not provided"}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8f5ea;font-weight:bold">Additional Info</td><td style="padding:8px 12px;background:#fafafa">${esc(additionalInfo || "None provided")}</td></tr>
         </table>
       `),
     });
@@ -543,7 +511,7 @@ router.post(
         subject: "Welcome to Porch P.O. Box! Your Partner Account is Active 📦",
         html: htmlEmail(`
         <h2 style="margin:0 0 16px;color:#121212">Welcome to the Porch P.O. Box Network!</h2>
-        <p>Hello <strong>${businessName}</strong>,</p>
+        <p>Hello <strong>${esc(businessName)}</strong>,</p>
         <p>We are excited to inform you that your application has been <strong>approved</strong> and your location is now <strong>active</strong> on the Porch P.O. Box network! Welcome to the community.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
         <h3 style="color:#d4af37;margin-bottom:12px">🚀 Getting Started</h3>
@@ -598,8 +566,8 @@ router.post(
                 subject: "🎉 You've earned a FREE year of Porch P.O. Box!",
                 html: htmlEmail(`
                 <h2 style="margin:0 0 16px;color:#121212">You've Earned Free Service for a Year!</h2>
-                <p>Hello ${referrer.name || "there"},</p>
-                <p>Great news! The business you referred &mdash; <strong>${businessName}</strong> &mdash; has just been approved as a Porch P.O. Box partner.</p>
+                <p>Hello ${esc(referrer.name || "there")},</p>
+                <p>Great news! The business you referred &mdash; <strong>${esc(businessName)}</strong> &mdash; has just been approved as a Porch P.O. Box partner.</p>
                 <p>As a thank you for your referral, you've been awarded <strong style="color:#1a7f37">one full year of free Porch P.O. Box service</strong>!</p>
                 <p>Your subscription is now active through <strong>${oneYearFromNow.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</strong>.</p>
                 <p style="text-align:center;margin:28px 0">

@@ -86,37 +86,47 @@ const requireAdmin = (req, res, next) => {
  * Blocks request if user is not registered as a partner.
  */
 const requirePartnerAccount = async (req, res, next) => {
-  const partnerSnap = await getDb().collection("partners").doc(req.auth.uid).get();
-  if (!partnerSnap.exists) {
-    return res.status(403).json({ message: "Partner profile not found" });
+  try {
+    const partnerSnap = await getDb().collection("partners").doc(req.auth.uid).get();
+    if (!partnerSnap.exists) {
+      return res.status(403).json({ message: "Partner profile not found" });
+    }
+    req.partnerProfile = partnerSnap.data();
+    next();
+  } catch (error) {
+    console.error("[Partner] requirePartnerAccount error:", error.message);
+    return res.status(500).json({ message: "Failed to verify partner account" });
   }
-  req.partnerProfile = partnerSnap.data();
-  next();
 };
 
 /**
  * Ensures partner is approved and only accessing their own data.
  */
 const requireApprovedPartner = async (req, res, next) => {
-  const uid = req.auth.uid;
-  const partnerSnap = await getDb().collection("partners").doc(uid).get();
-  const partnerData = partnerSnap.data();
+  try {
+    const uid = req.auth.uid;
+    const partnerSnap = await getDb().collection("partners").doc(uid).get();
+    const partnerData = partnerSnap.data();
 
-  if (!partnerSnap.exists || !partnerData.approved) {
-    return res.status(403).json({ message: "Partner approval required" });
+    if (!partnerSnap.exists || !partnerData.approved) {
+      return res.status(403).json({ message: "Partner approval required" });
+    }
+
+    // Ownership check: If a partnerId is targeted, it must match the authenticated UID
+    const targetPartnerId =
+      req.body?.partnerId || req.params?.partnerId || req.query?.partnerId;
+    if (targetPartnerId && targetPartnerId !== uid && !req.isAdmin) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized access to partner resource" });
+    }
+
+    req.partnerProfile = partnerData;
+    next();
+  } catch (error) {
+    console.error("[Partner] requireApprovedPartner error:", error.message);
+    return res.status(500).json({ message: "Failed to verify partner approval" });
   }
-
-  // Ownership check: If a partnerId is targeted, it must match the authenticated UID
-  const targetPartnerId =
-    req.body?.partnerId || req.params?.partnerId || req.query?.partnerId;
-  if (targetPartnerId && targetPartnerId !== uid && !req.isAdmin) {
-    return res
-      .status(403)
-      .json({ message: "Unauthorized access to partner resource" });
-  }
-
-  req.partnerProfile = partnerData;
-  next();
 };
 
 /** Helper for ownership verification (e.g. Stripe sessions) */

@@ -3,7 +3,7 @@ const router = express.Router();
 const subscriptionController = require('../controllers/subscriptionController');
 
 // Subscribe to a plan
-router.get('/subscribe', subscriptionController.createSubscription);
+router.post('/subscribe', subscriptionController.createSubscription);
 // router.get('/create-one-time-checkout-session', subscriptionController.createOneTimeCheckoutSession);
 
 
