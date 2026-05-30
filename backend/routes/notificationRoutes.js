@@ -514,18 +514,51 @@ router.post(
         <p>Hello <strong>${esc(businessName)}</strong>,</p>
         <p>We are excited to inform you that your application has been <strong>approved</strong> and your location is now <strong>active</strong> on the Porch P.O. Box network! Welcome to the community.</p>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-        <h3 style="color:#d4af37;margin-bottom:12px">🚀 Getting Started</h3>
-        <ul style="padding-left:20px;margin-bottom:24px">
-          <li><strong>Verify Your Hours:</strong> Log in to the <a href="https://porchpobox.com/partner" style="color:#d4af37;text-decoration:none;font-weight:bold">Partner Portal</a> and ensure your store hours are accurate. This ensures customers know when they can pick up their packages.</li>
-          <li><strong>Check-In Packages:</strong> When a package arrives for a Porch P.O. Box customer, use the "Package Check-In" tool on your dashboard. The customer will be automatically notified via email once you enter the quantity.</li>
-          <li><strong>ID Verification:</strong> When a customer arrives for pickup, please verify their ID matches the name on the package before marking it as delivered in the system.</li>
-          <li><strong>Manage Payouts:</strong> You can track your earnings and active subscriber counts directly from your "Partner Profile" page.</li>
+        <h3 style="color:#d4af37;margin-bottom:12px">📋 Partner Quick-Start Guide</h3>
+        <p style="font-size:14px;margin-bottom:16px">Follow these steps to start receiving packages and managing deliveries.</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:14px;line-height:1.6">
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;width:32px;font-weight:700;color:#d4af37">1.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>Log In</strong> — Go to <a href="https://porchpobox.com/partner" style="color:#d4af37;text-decoration:none;font-weight:bold">porchpobox.com/partner</a> and sign in with the email and password you registered with. This is your Partner Dashboard.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-weight:700;color:#d4af37">2.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>Verify Your Hours &amp; Info</strong> — Click "Partner Profile" from your dashboard to review your store hours, address, and contact info. Keeping these accurate helps customers find you.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-weight:700;color:#d4af37">3.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>Set Up Payment Info</strong> — In your Partner Profile, choose your preferred payout method (Venmo, Cash App, PayPal, or check). Payouts are processed monthly for active subscribers at your location.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-weight:700;color:#d4af37">4.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>When a Package Arrives</strong> — Click "Check In Packages" on your dashboard. Search for the customer by name and enter how many packages arrived. The customer is <em>automatically notified</em> by email.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-weight:700;color:#d4af37">5.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>Customer Pickup</strong> — When the customer arrives, verify their photo ID matches the name on the package. In the "Active Deliveries" section on your dashboard, check the box next to the customer and click "Mark Selected as Delivered."</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;font-weight:700;color:#d4af37">6.</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top"><strong>Track Activity</strong> — Your dashboard shows a live Activity Log of all check-ins, deliveries, and new subscribers. You can also click "Info" next to any customer name to see their full history with your location.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;vertical-align:top;font-weight:700;color:#d4af37">7.</td>
+            <td style="padding:10px 0;vertical-align:top"><strong>View Earnings</strong> — Your Partner Profile includes a "Payout Tracking" section showing your current month earnings and payout history. You earn $5 per active subscriber per month.</td>
+          </tr>
+        </table>
+
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
+        <h3 style="color:#d4af37;margin-bottom:12px">✅ Best Practices</h3>
+        <ul style="padding-left:20px;font-size:14px;line-height:1.7">
+          <li><strong>Mark packages delivered promptly</strong> — This keeps your package count accurate and helps customers get timely notifications.</li>
+          <li><strong>Store packages securely indoors</strong> — Keep Porch P.O. Box packages in a safe, dry, indoor area away from public access.</li>
+          <li><strong>Never open customer packages</strong> — Customer packages are private property. Do not open, inspect contents, or photograph them.</li>
+          <li><strong>Place a small sign</strong> — A designated shelf or bin helps keep Porch P.O. Box packages organized and separate from store inventory.</li>
         </ul>
+
         <p style="text-align:center;margin:32px 0">
           <a href="https://porchpobox.com/partner" style="background:#121212;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:bold;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,0.15)">Access Your Dashboard</a>
-        </p>
-        <p style="background:#fdf8e6;padding:16px;border-radius:8px;border:1px solid #f0c040;font-size:14px">
-          <strong>Pro Tip:</strong> Most partners place a small sign or designated shelf in a secure area to keep Porch P.O. Box deliveries organized and separate from store inventory.
         </p>
         <p style="color:#666;font-size:14px;margin-top:24px">If you have any questions, simply reply to this email. We're here to help you succeed!</p>
       `),
