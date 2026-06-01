@@ -17,7 +17,7 @@ const renewalRemindersRoute = require("./routes/cron/renewalReminders");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { corsOptions } = require("./middleware/corsConfig");
+const { corsOptions, isAllowedOrigin } = require("./middleware/corsConfig");
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
@@ -26,6 +26,28 @@ const app = express();
 
 // Security headers
 app.use(helmet());
+
+// Explicit CORS headers + preflight handler (runs before cors() to ensure
+// Vercel serverless functions always return the proper Access-Control-* headers).
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization",
+  );
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // Apply CORS at the very top to ensure preflight requests
 // are handled before any body parsing or route matching.
