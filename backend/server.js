@@ -14,10 +14,8 @@ const {
   requireAdmin,
 } = require("./middleware/firebaseAuth");
 const renewalRemindersRoute = require("./routes/cron/renewalReminders");
-const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { corsOptions, isAllowedOrigin } = require("./middleware/corsConfig");
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
@@ -27,11 +25,11 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// Explicit CORS headers + preflight handler (runs before cors() to ensure
-// Vercel serverless functions always return the proper Access-Control-* headers).
+// CORS — use a simpler config that works reliably on Vercel serverless.
+// We need to set headers and handle OPTIONS before any body parsing.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && isAllowedOrigin(origin)) {
+  if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
@@ -48,10 +46,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// Apply CORS at the very top to ensure preflight requests
-// are handled before any body parsing or route matching.
-app.use(cors(corsOptions));
 
 // Rate limiting for API routes
 const apiLimiter = rateLimit({
