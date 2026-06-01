@@ -293,10 +293,9 @@ const activateUserSubscription = async (
               "\u2014 The Porch P.O. Box Team"
             ].join("\n")
           })
-        });
+        }
         console.log(`Subscription confirmation email sent to ${toEmail}`);
       }
-    }
   } catch (emailErr) {
     console.error("Failed to send subscription confirmation email:", emailErr);
   }
