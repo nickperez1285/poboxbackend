@@ -73,4 +73,5 @@ node_modules/
 .env 
 .env.test
 .env.live
+/Users/home/PorchPOBoxMainFolder/poboxbackend/.env.test
 /Users/home/PorchPOBoxMainFolder/poboxbackend/backend/.env

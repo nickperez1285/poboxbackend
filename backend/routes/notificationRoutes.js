@@ -391,7 +391,7 @@ router.post("/welcome", async (req, res) => {
         <h2 style="margin:0 0 16px;color:#121212">Welcome, ${esc(name || "there")}!</h2>
         <p>Your Porch P.O. Box account has been created successfully.</p>
         <p>Your <strong>first package delivery is on us</strong> — no subscription needed to try the service.</p>
-        <p>Ready to get unlimited access? View our plans and subscribe today:</p>
+        <p>Ready to get started? View our plans and subscribe today:</p>
         <p style="text-align:center;margin:28px 0">
           <a href="https://porchpobox.com/plans" style="background:#d4af37;color:#121212;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:15px">View Plans</a>
         </p>
@@ -544,7 +544,16 @@ router.post(
           </tr>
           <tr>
             <td style="padding:10px 0;vertical-align:top;font-weight:700;color:#d4af37">7.</td>
-            <td style="padding:10px 0;vertical-align:top"><strong>View Earnings</strong> — Your Partner Profile includes a "Payout Tracking" section showing your current month earnings and payout history. You earn $5 per active subscriber per month.</td>
+            <td style="padding:10px 0;vertical-align:top"><strong>View Earnings</strong> — Your Partner Profile includes a "Payout Tracking" section showing your current month earnings and payout history. You earn $10 per active subscriber per month.</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;vertical-align:top;font-weight:700;color:#d4af37">8.</td>
+            <td style="padding:10px 0;vertical-align:top"><strong>Sign Up for Delivery Notices</strong> — To ensure you never miss a package, sign up for free delivery notifications from the major carriers. This way you'll know when to expect deliveries for your customers.
+              <br /><br />
+              <a href="https://www.ups.com/us/en/tracking/manage-delivery.page" style="color:#d4af37;font-weight:bold;text-decoration:none">UPS Delivery Manager</a>
+              &nbsp;—&nbsp;
+              <a href="https://www.fedex.com/en-us/delivery-manager.html" style="color:#d4af37;font-weight:bold;text-decoration:none">FedEx Delivery Manager</a>
+            </td>
           </tr>
         </table>
 
@@ -1011,5 +1020,68 @@ router.post("/user-signup", requireAuth, async (req, res) => {
       .json({ message: error.message || "Failed to log signup" });
   }
 });
+
+router.post(
+  "/group-email",
+  requireAuth,
+  loadAuthContext,
+  requireAdmin,
+  async (req, res) => {
+    const { subject, html } = req.body || {};
+
+    if (!subject || !html) {
+      return res
+        .status(400)
+        .json({ message: "Subject and HTML body are required" });
+    }
+
+    try {
+      const db = getDb();
+      const partnersSnap = await db
+        .collection("partners")
+        .where("approved", "==", true)
+        .get();
+
+      if (partnersSnap.empty) {
+        return res
+          .status(200)
+          .json({ success: true, sent: 0, message: "No approved partners found" });
+      }
+
+      const results = { sent: 0, failed: 0, errors: [] };
+
+      await Promise.all(
+        partnersSnap.docs.map(async (docSnap) => {
+          const partner = docSnap.data();
+          if (!partner.email) return;
+          try {
+            await sendEmail({
+              to: partner.email,
+              replyTo: adminInbox,
+              subject: `[Porch P.O. Box] ${subject}`,
+              html: htmlEmail(html),
+            });
+            results.sent++;
+          } catch (err) {
+            results.failed++;
+            results.errors.push({ email: partner.email, error: err.message });
+          }
+        }),
+      );
+
+      return res.status(200).json({
+        success: true,
+        sent: results.sent,
+        failed: results.failed,
+        errors: results.errors,
+        message: `Email sent to ${results.sent} partner(s)` +
+          (results.failed ? ` (${results.failed} failed)` : ""),
+      });
+    } catch (error) {
+      console.error("Group email failed:", error);
+      return res.status(500).json({ message: error.message });
+    }
+  },
+);
 
 module.exports = router;

@@ -32,7 +32,7 @@ This route is responsible for:
 - `RESEND_API_KEY`
 - `MAIL_FROM_EMAIL`
   - recommended current sender: `no-reply@send.porchpobox.com`
-  - switch to `no-reply@porchpobox.com` only after the root domain is verified for sending
+  - switch to `noreply@porchpobox.com` only after the root domain is verified for sending
 - `FRONTEND_URL`
 
 SMS (package check-in alerts) via SignalWire:
