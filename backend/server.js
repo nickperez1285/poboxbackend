@@ -7,6 +7,7 @@ const stripeConfigRoutes = require("./routes/stripeConfig");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const productRoutes = require("./routes/productRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const geocodeRoutes = require("./routes/geocodeRoutes");
 const debugRoutes = require("./routes/debugRoutes");
 const {
   requireAuth,
@@ -67,6 +68,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/notifications", notificationRoutes);
+app.use("/api", geocodeRoutes);
 app.use("/api/debug", requireAuth, loadAuthContext, requireAdmin, debugRoutes);
 app.use("/api/cron", renewalRemindersRoute);
 
